@@ -26,9 +26,9 @@ db:
   # PostgreSQL / MySQL / MariaDB / MS SQL Server only:
   host: localhost
   port: 5432
-  user: wikijs
-  pass: wikijsrocks
-  db: wiki
+  user: example_user
+  pass: example_password
+  db: example_db
   ssl: false
 
   # Optional - PostgreSQL / MySQL / MariaDB only:

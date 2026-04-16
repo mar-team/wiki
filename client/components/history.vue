@@ -2,24 +2,34 @@
   v-app(:dark='$vuetify.theme.dark').history
     nav-header
     v-main
-      v-toolbar(color='primary', dark)
-        .subheading Viewing history of #[strong /{{path}}]
+      v-toolbar(:color='$vuetify.theme.dark ? colors.surfaceDark.primaryBlueHeavy : colors.surfaceLight.primaryBlueHeavy')
+        .subheading
+        span(:style='{"color": colors.textDark.primary}') Viewing history of #[strong /{{path}}]
         template(v-if='$vuetify.breakpoint.mdAndUp')
           v-spacer
           .caption.blue--text.text--lighten-3.mr-4 Trail Length: {{total}}
           .caption.blue--text.text--lighten-3 ID: {{pageId}}
-          v-btn.ml-4(depressed, color='blue darken-1', @click='goLive') Return to Live Version
-      v-container(fluid, grid-list-xl)
+          v-btn#return-btn.ml-4.hover-btn.text-primary.text-none(
+            :color='colors.actionLight.highlightOnLite'
+            rounded
+            @click='goLive'
+            ) Return to Live Version
+      v-container(
+        fluid
+        grid-list-xl
+        :class='$vuetify.breakpoint.mdAndUp ? `mt-4` : ``'
+        )
         v-layout(row, wrap)
           v-flex(xs12, md4)
-            v-chip.my-0.ml-6(
+            v-chip.my-0.ml-6.centered(
               label
               small
-              :color='$vuetify.theme.dark ? `grey darken-2` : `grey lighten-2`'
-              :class='$vuetify.theme.dark ? `grey--text text--lighten-2` : `grey--text text--darken-2`'
+              :color='$vuetify.theme.dark ? colors.neutral[750] : colors.neutral[200]'
               )
-              span Live
-            v-timeline(
+              span(
+                :style='{"color": $vuetify.theme.dark ? colors.textDark.primary : colors.textLight.primary}'
+              ) Live
+            v-timeline.centered(
               dense
               )
               v-timeline-item.pb-2(
@@ -29,19 +39,39 @@
                 :color='trailColor(ph.actionType)'
                 :icon='trailIcon(ph.actionType)'
                 )
-                v-card.radius-7(flat, :class='trailBgColor(ph.actionType)')
-                  v-toolbar(flat, :color='trailBgColor(ph.actionType)', height='40')
-                    .caption(:title='$options.filters.moment(ph.versionDate, `LLL`)') {{ ph.versionDate | moment('ll') }}
+                v-card(flat, rounded, :color='trailBgColor(ph.actionType)')
+                  v-toolbar(flat, rounded, :color='trailBgColor(ph.actionType)', height='40')
+                    .caption(
+                      :style='{"color": trailTextColor(ph.actionType)}'
+                      :title='$options.filters.moment(ph.versionDate, `LLL`)'
+                      ) {{ ph.versionDate | moment('ll') }}
                     v-divider.mx-3(vertical)
-                    .caption(v-if='ph.actionType === `edit`') Edited by #[strong {{ ph.authorName }}]
-                    .caption(v-else-if='ph.actionType === `move`') Moved from #[strong {{ph.valueBefore}}] to #[strong {{ph.valueAfter}}] by #[strong {{ ph.authorName }}]
-                    .caption(v-else-if='ph.actionType === `initial`') Created by #[strong {{ ph.authorName }}]
-                    .caption(v-else-if='ph.actionType === `live`') Last Edited by #[strong {{ ph.authorName }}]
-                    .caption(v-else) Unknown Action by #[strong {{ ph.authorName }}]
+                    .caption(
+                      v-if='ph.actionType === `edit`'
+                      :style='{"color": trailTextColor(ph.actionType)}'
+                      ) Edited by #[strong {{ ph.authorName }}]
+                    .caption(
+                      v-else-if='ph.actionType === `move`'
+                      :style='{"color": trailTextColor(ph.actionType)}'
+                      ) Moved from #[strong {{ph.valueBefore}}] to #[strong {{ph.valueAfter}}] by #[strong {{ ph.authorName }}]
+                    .caption(
+                      v-else-if='ph.actionType === `initial`'
+                      :style='{"color": trailTextColor(ph.actionType)}'
+                      ) Created by #[strong {{ ph.authorName }}]
+                    .caption(
+                      v-else-if='ph.actionType === `live`'
+                      :style='{"color": trailTextColor(ph.actionType)}'
+                      ) Last Edited by #[strong {{ ph.authorName }}]
+                    .caption(
+                      v-else
+                      :style='{"color": trailTextColor(ph.actionType)}'
+                      ) Unknown Action by #[strong {{ ph.authorName }}]
                     v-spacer
                     v-menu(offset-x, left)
                       template(v-slot:activator='{ on }')
-                        v-btn.mr-2.radius-4(icon, v-on='on', small, tile): v-icon mdi-dots-horizontal
+                        v-btn.mr-2(icon, v-on='on', small, rounded): v-icon(
+                          :style='{"color": trailTextColor(ph.actionType)}'
+                        ) mdi-dots-horizontal
                       v-list(dense, nav).history-promptmenu
                         v-list-item(@click='setDiffSource(ph.versionId)', :disabled='(ph.versionId >= diffTarget && diffTarget !== 0) || ph.versionId === 0')
                           v-list-item-avatar(size='24'): v-avatar A
@@ -61,43 +91,54 @@
                         v-list-item(@click='branchOff(ph.versionId)')
                           v-list-item-avatar(size='24'): v-icon mdi-source-branch
                           v-list-item-title Branch off from here
-                    v-btn.mr-2.radius-4(
+                    v-btn.mr-2(
                       @click='setDiffSource(ph.versionId)'
                       icon
                       small
                       depressed
-                      tile
-                      :class='diffSource === ph.versionId ? `pink white--text` : ($vuetify.theme.dark ? `grey darken-2` : `grey lighten-2`)'
-                      :disabled='(ph.versionId >= diffTarget && diffTarget !== 0) || ph.versionId === 0'
+                      rounded
+                      :style='getDiffSelectorStyle(\
+                        ph.versionId,\
+                        diffSource,\
+                        isDiffSourceDisabled(ph.versionId)\
+                        )'
+                      :disabled='isDiffSourceDisabled(ph.versionId)'
                       ): strong A
-                    v-btn.mr-0.radius-4(
+                    v-btn.mr-0(
                       @click='setDiffTarget(ph.versionId)'
                       icon
                       small
                       depressed
-                      tile
-                      :class='diffTarget === ph.versionId ? `pink white--text` : ($vuetify.theme.dark ? `grey darken-2` : `grey lighten-2`)'
-                      :disabled='ph.versionId <= diffSource && ph.versionId !== 0'
+                      rounded
+                      :style='getDiffSelectorStyle(\
+                        ph.versionId,\
+                        diffTarget,\
+                        isDiffTargetDisabled(ph.versionId)\
+                        )'
+                      :disabled='isDiffTargetDisabled(ph.versionId)'
                       ): strong B
 
-            v-btn.ma-0.radius-7(
+            v-btn#load-more-btn.ml-8.btn-rounded(
               v-if='total > trail.length'
-              block
-              color='primary'
+              dark
+              :color='$vuetify.theme.dark ? colors.surfaceDark.secondarySapHeavy : colors.surfaceLight.secondaryBlueHeavy'
               @click='loadMore'
+              depressed
               )
-              .caption.white--text Load More...
+              span.text-none Load More...
 
             v-chip.ma-0(
               v-else
               label
               small
-              :color='$vuetify.theme.dark ? `grey darken-2` : `grey lighten-2`'
-              :class='$vuetify.theme.dark ? `grey--text text--lighten-2` : `grey--text text--darken-2`'
+              :color='$vuetify.theme.dark ? colors.neutral[750] : colors.neutral[200]'
+              )
+              span(
+                :style='{"color": $vuetify.theme.dark ? colors.textDark.primary : colors.textLight.primary}'
               ) End of history trail
 
           v-flex(xs12, md8)
-            v-card.radius-7(:class='$vuetify.breakpoint.mdAndUp ? `mt-8` : ``')
+            v-card.radius-7
               v-card-text
                 v-card.grey.radius-7(flat, :class='$vuetify.theme.dark ? `darken-2` : `lighten-4`')
                   v-row(no-gutters, align='center')
@@ -106,10 +147,20 @@
                         .subheading {{target.title}}
                         .caption {{target.description}}
                     v-col.text-right.py-3(cols='2', v-if='$vuetify.breakpoint.mdAndUp')
-                      v-btn.mr-3(:color='$vuetify.theme.dark ? `white` : `grey darken-3`', small, dark, outlined, @click='toggleViewMode')
-                        v-icon(left) mdi-eye
-                        .overline View Mode
-                v-card.mt-3(light, v-html='diffHTML', flat)
+                      v-btn.mr-3(
+                        small
+                        dark
+                        rounded
+                        outlined
+                        :color='$vuetify.theme.dark ? colors.surfaceDark.inverse : colors.surfaceLight.primarySapHeavy'
+                        @click='toggleViewMode')
+                        v-icon(left, :color='$vuetify.theme.dark ? colors.surfaceLight.primaryNeutralLite : colors.surfaceLight.inverse') mdi-eye
+                        .overline.text-none View Mode
+                v-card.mt-3(
+                  v-html='diffHTML', 
+                  flat,
+                  :color='$vuetify.theme.dark ? colors.surfaceDark.secondaryNeutralHeavy : colors.surfaceLight.primaryNeutralLite'
+                )
 
     v-dialog(v-model='isRestoreConfirmDialogShown', max-width='650', persistent)
       v-card
@@ -140,6 +191,7 @@ import * as Diff2Html from 'diff2html'
 import { createPatch } from 'diff'
 import _ from 'lodash'
 import gql from 'graphql-tag'
+import colors from '@/themes/default/js/color-scheme'
 
 export default {
   i18nOptions: { namespaces: 'history' },
@@ -241,7 +293,8 @@ export default {
         modal: false
       },
       isRestoreConfirmDialogShown: false,
-      restoreLoading: false
+      restoreLoading: false,
+      colors: colors
     }
   },
   computed: {
@@ -487,43 +540,82 @@ export default {
       })
     },
     trailColor (actionType) {
-      switch (actionType) {
-        case 'edit':
-          return 'primary'
-        case 'move':
-          return 'purple'
-        case 'initial':
-          return 'teal'
-        case 'live':
-          return 'orange'
-        default:
-          return 'grey'
+      if (actionType === 'edit') {
+        return this.$vuetify.theme.dark ? colors.neutral[600] : colors.neutral[200]
       }
+      if (actionType === 'move') {
+        return this.$vuetify.theme.dark ? colors.red[800] : colors.red[400]
+      }
+      if (actionType === 'initial') {
+        return this.$vuetify.theme.dark ? colors.sapphire[500] : colors.blue[300]
+      }
+      if (actionType === 'live') {
+        return this.$vuetify.theme.dark ? colors.surfaceDark.noticeLite : colors.surfaceLight.noticeLite
+      }
+      return this.$vuetify.theme.dark ? colors.blue[800] : colors.blue[300]
     },
+
     trailIcon (actionType) {
-      switch (actionType) {
-        case 'edit':
-          return '' // 'mdi-pencil'
-        case 'move':
-          return 'mdi-forward'
-        case 'initial':
-          return 'mdi-plus'
-        case 'live':
-          return 'mdi-atom-variant'
-        default:
-          return 'mdi-alert'
+      if (actionType === 'edit') {
+        return '' // No icon for edit
       }
+      if (actionType === 'move') {
+        return 'mdi-forward'
+      }
+      if (actionType === 'initial') {
+        return 'mdi-plus'
+      }
+      if (actionType === 'live') {
+        return 'mdi-atom-variant'
+      }
+      return 'mdi-alert'
     },
+
     trailBgColor (actionType) {
-      switch (actionType) {
-        case 'move':
-          return this.$vuetify.theme.dark ? 'purple' : 'purple lighten-5'
-        case 'initial':
-          return this.$vuetify.theme.dark ? 'teal darken-3' : 'teal lighten-5'
-        case 'live':
-          return this.$vuetify.theme.dark ? 'orange darken-3' : 'orange lighten-5'
-        default:
-          return this.$vuetify.theme.dark ? 'grey darken-3' : 'grey lighten-4'
+      if (actionType === 'move') {
+        return this.$vuetify.theme.dark ? colors.red[800] : colors.red[200]
+      }
+      if (actionType === 'initial') {
+        return this.$vuetify.theme.dark ? colors.sapphire[500] : colors.blue[200]
+      }
+      if (actionType === 'live') {
+        return this.$vuetify.theme.dark ? colors.surfaceDark.noticeLite : colors.surfaceLight.noticeHeavy
+      }
+      return this.$vuetify.theme.dark ? colors.neutral[550] : colors.neutral[100]
+    },
+
+    trailTextColor (actionType) {
+      if (actionType === 'live') {
+        return colors.textLight.primary
+      }
+      return this.$vuetify.theme.dark ? colors.textDark.primary : colors.textLight.primary
+    },
+
+    isDiffSourceDisabled(sourceId) {
+      return (sourceId >= this.diffTarget && this.diffTarget !== 0) || sourceId === 0
+    },
+    isDiffTargetDisabled(targetId) {
+      return targetId <= this.diffSource && targetId !== 0
+    },
+    getDiffSelectorStyle(versionId, diffReference, isDisabled) {
+      let diffBackgroundColor
+      if (diffReference === versionId) {
+        diffBackgroundColor = this.$vuetify.theme.dark ? colors.surfaceDark.secondarySapHeavy : colors.surfaceLight.secondaryBlueHeavy
+      } else {
+        diffBackgroundColor = this.$vuetify.theme.dark ? colors.surfaceDark.noticeLite : colors.surfaceLight.noticeHeavy
+      } 
+      let diffColor
+      if (diffReference === versionId) {
+        diffColor = colors.surfaceLight.primaryNeutralLite
+      } else if (isDisabled) {
+        diffColor = colors.textLight.disabled
+        diffBackgroundColor = this.$vuetify.theme.dark ? colors.neutral[700] : colors.neutral[150]
+      } else {
+        diffColor = colors.textLight.primary
+      }
+      return {
+        'background-color': diffBackgroundColor,
+        'color': diffColor
       }
     }
   },
@@ -565,53 +657,217 @@ export default {
 }
 </script>
 
+<style lang='scss' scoped>
+.v-chip--label {
+  border-radius: 12px !important;
+
+  &.centered {
+    margin-left: 38px !important;
+  }
+}
+
+::v-deep .v-timeline-item__body {
+  margin-right: 16px !important;
+}
+
+.layout.row.wrap > .flex.xs12.md4{
+  max-height: calc(100vh - 256px);
+  overflow-y: auto;
+  padding-left: 0px;
+}
+
+.v-timeline.v-timeline--dense.centered {
+  margin-left: 14px;
+}
+
+.v-card__text {
+  max-height: calc(100vh - 224px);
+
+  .v-card.v-card--flat.v-sheet {
+    max-height: calc(100vh - 360px);
+    overflow: auto;
+  }
+}
+
+// #return-btn styling now uses global .hover-btn and .text-primary classes
+
+#load-more-btn {
+  width: calc(100% - 24px);
+}
+
+.v-btn.btn-rounded {
+  border-radius: 20px;
+}
+</style>
+
+// Global styling
 <style lang='scss'>
+.v-btn.hover-btn {
+  &:hover {
+    background-color: mc('action-dark', 'highlight-on-lite') !important;
+  }
+}
+
+.text-primary {
+  color: mc("text-light", "primary") !important;
+
+  &.dark {
+    color: mc("text-dark", "primary") !important;
+  }
+}
+
+// Light theme ins/del colors
+.theme--light {
+  ins {
+    background-color: mc('green', '300') !important;
+  }
+
+  del {
+    background-color: mc('red', '100') !important;
+  }
+}
+
+// Dark theme ins/del colors - darker and more visible
+.theme--dark {
+  ins {
+    background-color: mc('green', '700') !important;
+    color: mc('green', '50') !important;
+  }
+
+  del {
+    background-color: mc('red', '600') !important;
+    color: mc('red', '50') !important;
+  }
+}
 
 .history {
   &-promptmenu {
     border-top: 5px solid mc('blue', '700');
   }
 
-  .d2h-file-wrapper {
-    border: 1px solid #EEE;
-    border-left: none;
-  }
-
   .d2h-file-header {
     display: none;
   }
 
-  d2h-code-line-added {
-    background-color: rgba(mc('ext-peacock', '1'), 0.2) !important;
+  // Light theme - complete styling
+  &.theme--light {
+    .d2h-file-wrapper {
+      border: 1px solid #EEE;
+      border-left: none;
+      background-color: #ffffff;
+    }
 
-    .d2h-code-line-ctn {
-      background-color: rgba(mc('ext-peacock', '1'), 0.2) !important;
+    .d2h-code-line-added {
+      background-color: rgba(mc('green', '200'), 0.9) !important;
+
+      .d2h-code-line-ctn {
+        background-color: rgba(mc('green', '200'), 0.9) !important;
+      }
+    }
+
+    .d2h-addition {
+      background-color: rgba(mc('green', '200'), 0.7) !important;
+    }
+
+    .d2h-ins {
+      background-color: rgba(mc('green', '200'), 1.0) !important;
+    }
+
+    .d2h-code-line-removed {
+      background-color: rgba(mc('red', '50'), 0.6) !important;
+
+      .d2h-code-line-ctn {
+        background-color: rgba(mc('red', '50'), 0.6) !important;
+      }
+    }
+
+    .d2h-deletion {
+      background-color: rgba(mc('red', '50'), 0.4) !important;
+    }
+
+    .d2h-del {
+      background-color: rgba(mc('red', '100'), 0.7) !important;
     }
   }
 
-  .d2h-addition {
-    background-color: rgba(mc('ext-peacock', '1'), 0.15) !important;
-  }
-
-  .d2h-ins {
-    background-color: rgba(mc('ext-peacock', '1'), 0.4) !important;
-  }
-
-  .d2h-code-line-removed {
-    background-color: rgba(mc('ext-yellow', '1'), 0.2) !important;
-
-    .d2h-code-line-ctn {
-      background-color: rgba(mc('ext-yellow', '1'), 0.2) !important;
-
+  // Dark theme - complete styling
+  &.theme--dark {
+    .d2h-file-wrapper {
+      border: 1px solid mc('neutral', '600');
+      border-left: none;
+      background-color: mc('neutral', '750') !important;
+      color: mc('text-dark', 'primary') !important;
     }
-  }
 
-  .d2h-deletion {
-    background-color: rgba(mc('ext-yellow', '2'), 0.15) !important;
-  }
+    // Override all diff2html backgrounds and text colors for dark theme
+    .d2h-code-wrapper,
+    .d2h-code-line,
+    .d2h-line-number,
+    .d2h-code-linenumber,
+    .d2h-info,
+    tbody tr,
+    tbody td {
+      color: mc('text-dark', 'primary') !important;
+      background-color: mc('neutral', '750') !important;
+    }
 
-  .d2h-del {
-    background-color: rgba(mc('ext-yellow', '2'), 0.4) !important;
+    // Context lines only (not added/removed)
+    .d2h-context .d2h-code-line-ctn {
+      color: mc('text-dark', 'primary') !important;
+      background-color: mc('neutral', '750') !important;
+    }
+
+    // Line numbers on the left side
+    .d2h-code-linenumber {
+      background-color: mc('neutral', '700') !important;
+      color: mc('text-dark', 'secondary') !important;
+      border-right: 1px solid mc('neutral', '600') !important;
+    }
+
+    // Table structure
+    .d2h-diff-table {
+      background-color: mc('neutral', '750') !important;
+    }
+
+    .d2h-code-line-added {
+      background-color: rgba(mc('green', '600'), 0.3) !important;
+      color: mc('green', '100') !important;
+
+      .d2h-code-line-ctn {
+        background-color: rgba(mc('green', '600'), 0.3) !important;
+        color: mc('green', '100') !important;
+      }
+    }
+
+    .d2h-addition {
+      background-color: rgba(mc('green', '600'), 0.2) !important;
+      color: mc('green', '100') !important;
+    }
+
+    .d2h-ins {
+      background-color: rgba(mc('green', '500'), 0.4) !important;
+      color: mc('green', '50') !important;
+    }
+
+    .d2h-code-line-removed {
+      background-color: rgba(mc('red', '500'), 0.4) !important;
+      color: mc('red', '100') !important;
+
+      .d2h-code-line-ctn {
+        background-color: rgba(mc('red', '500'), 0.4) !important;
+        color: mc('red', '100') !important;
+      }
+    }
+
+    .d2h-deletion {
+      background-color: rgba(mc('red', '500'), 0.3) !important;
+      color: mc('red', '100') !important;
+    }
+
+    .d2h-del {
+      background-color: rgba(mc('red', '400'), 0.7) !important;
+      color: mc('red', '50') !important;
+    }
   }
 
   // Make text in changed sections more readable
@@ -621,13 +877,4 @@ export default {
     }
   }
 }
-
-ins {
-  background-color: mc('ext-peacock', '1') !important;
-}
-
-del {
-  background-color: mc('ext-yellow', '2') !important;
-}
-
 </style>

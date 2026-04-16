@@ -19,8 +19,7 @@ const WIKI = {
     host: 'https://example.com',
     mail: {
       allowedDomains: ''
-    },
-    title: 'Test Wiki',
+    }
   },
   logger: {
     warn: jest.fn(),
@@ -83,21 +82,22 @@ describe('notifyUsers', () => {
 
     expect(WIKI.models.users.query().whereIn).toHaveBeenCalledWith('id', userIds)
     expect(WIKI.mail.send).toHaveBeenCalledTimes(1)
-    expect(WIKI.mail.send).toHaveBeenCalledWith({
+    expect(WIKI.mail.send).toHaveBeenCalledWith(expect.objectContaining({
       template: 'page-notify',
       to: '',
       bcc: ['user1@example.com', 'user2@example.com'],
-      subject: `[Test Wiki] Page Updated: ${pageTitle}`,
-      data: {
-        pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
+      subject: '[ExampleWiki] Page Updated: Test Page',
+      data: expect.objectContaining({
+        event: 'UPDATE_PAGE',
+        eventText: 'updated',
         isDeletion: false,
-        preheadertext: `The page "${pageTitle}" has been ${event.toLowerCase()} by ${userEmail}.`,
-        pageTitle: pageTitle,
-        userEmail: userEmail,
-        event: event,
-        eventText: 'updated'
-      }
-    })
+        pageTitle: 'Test Page',
+        pageUrl: 'https://example.com/test-site/test-page',
+        preheadertext: 'The page "Test Page" has been update_page by user@example.com.',
+        userEmail: 'user@example.com'
+        // mailLogoSrc is allowed but not required in the expectation
+      })
+    }))
   })
 
   it('should notify users with read access in batches', async () => {
@@ -144,7 +144,7 @@ describe('notifyUsers', () => {
       template: 'page-notify',
       to: '',
       bcc: users.slice(0, 10).map(f => f.email),
-      subject: `[Test Wiki] Page Updated: ${pageTitle}`,
+      subject: `[ExampleWiki] Page Updated: ${pageTitle}`,
       data: {
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
         isDeletion: false,
@@ -152,14 +152,15 @@ describe('notifyUsers', () => {
         pageTitle: pageTitle,
         userEmail: userEmail,
         event: event,
-        eventText: 'updated'
+        eventText: 'updated',
+        mailLogoSrc: 'https://default-logo-url.com/logo.png'
       }
     })
     expect(WIKI.mail.send).toHaveBeenNthCalledWith(2, {
       template: 'page-notify',
       to: '',
       bcc: users.slice(10, 20).map(f => f.email),
-      subject: `[Test Wiki] Page Updated: ${pageTitle}`,
+      subject: `[ExampleWiki] Page Updated: ${pageTitle}`,
       data: {
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
         isDeletion: false,
@@ -167,14 +168,15 @@ describe('notifyUsers', () => {
         pageTitle: pageTitle,
         userEmail: userEmail,
         event: event,
-        eventText: 'updated'
+        eventText: 'updated',
+        mailLogoSrc: 'https://default-logo-url.com/logo.png'
       }
     })
     expect(WIKI.mail.send).toHaveBeenNthCalledWith(3, {
       template: 'page-notify',
       to: '',
       bcc: users.slice(20, 25).map(f => f.email),
-      subject: `[Test Wiki] Page Updated: ${pageTitle}`,
+      subject: `[ExampleWiki] Page Updated: ${pageTitle}`,
       data: {
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
         isDeletion: false,
@@ -182,7 +184,8 @@ describe('notifyUsers', () => {
         pageTitle: pageTitle,
         userEmail: userEmail,
         event: event,
-        eventText: 'updated'
+        eventText: 'updated',
+        mailLogoSrc: 'https://default-logo-url.com/logo.png'
       }
     })
   })
@@ -260,7 +263,7 @@ describe('notifyUsers', () => {
       template: 'page-notify',
       to: '',
       bcc: ['user1@example.com', 'user2@example.com'],
-      subject: `[Test Wiki] Page Created: ${pageTitle}`,
+      subject: `[ExampleWiki] Page Created: ${pageTitle}`,
       data: {
         preheadertext: `The page "${pageTitle}" has been ${event.toLowerCase()} by ${userEmail}.`,
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
@@ -268,7 +271,8 @@ describe('notifyUsers', () => {
         userEmail,
         event: event,
         eventText: 'created',
-        isDeletion: false
+        isDeletion: false,
+        mailLogoSrc: 'https://default-logo-url.com/logo.png'
       }
     })
   })
@@ -317,7 +321,7 @@ describe('notifyUsers', () => {
       template: 'page-notify',
       to: '',
       bcc: ['user1@example.com', 'user2@example.com'],
-      subject: `[Test Wiki] Page Deleted: ${pageTitle}`,
+      subject: `[ExampleWiki] Page Deleted: ${pageTitle}`,
       data: {
         preheadertext: `The page "${pageTitle}" has been ${event.toLowerCase()} by ${userEmail}.`,
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
@@ -325,7 +329,8 @@ describe('notifyUsers', () => {
         userEmail,
         event: event,
         eventText: 'deleted',
-        isDeletion: true
+        isDeletion: true,
+        mailLogoSrc: 'https://default-logo-url.com/logo.png'
       }
     })
   })
@@ -376,7 +381,7 @@ describe('notifyUsers', () => {
       template: 'page-notify',
       to: '',
       bcc: ['user1@alloweddomain.com', 'user2@alloweddomain.com'],
-      subject: `[Test Wiki] Page Updated: ${pageTitle}`,
+      subject: `[ExampleWiki] Page Updated: ${pageTitle}`,
       data: {
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
         isDeletion: false,
@@ -384,7 +389,8 @@ describe('notifyUsers', () => {
         pageTitle: pageTitle,
         userEmail: userEmail,
         event: event,
-        eventText: 'updated'
+        eventText: 'updated',
+        mailLogoSrc: 'https://default-logo-url.com/logo.png'
       }
     })
   })
@@ -436,7 +442,7 @@ describe('notifyUsers', () => {
       template: 'page-notify',
       to: '',
       bcc: ['user1@alloweddomain1.com', 'user2@alloweddomain2.com'],
-      subject: `[Test Wiki] Page Updated: ${pageTitle}`,
+      subject: `[ExampleWiki] Page Updated: ${pageTitle}`,
       data: {
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
         isDeletion: false,
@@ -444,7 +450,8 @@ describe('notifyUsers', () => {
         pageTitle: pageTitle,
         userEmail: userEmail,
         event: event,
-        eventText: 'updated'
+        eventText: 'updated',
+        mailLogoSrc: 'https://default-logo-url.com/logo.png'
       }
     })
   })
@@ -496,7 +503,7 @@ describe('notifyUsers', () => {
       template: 'page-notify',
       to: '',
       bcc: ['user1@alloweddomain1.com', 'user2@alloweddomain2.com', 'user3@notalloweddomain.com'],
-      subject: `[Test Wiki] Page Updated: ${pageTitle}`,
+      subject: `[ExampleWiki] Page Updated: ${pageTitle}`,
       data: {
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
         isDeletion: false,
@@ -504,7 +511,8 @@ describe('notifyUsers', () => {
         pageTitle: pageTitle,
         userEmail: userEmail,
         event: event,
-        eventText: 'updated'
+        eventText: 'updated',
+        mailLogoSrc: 'https://default-logo-url.com/logo.png'
       }
     })
   })

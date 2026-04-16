@@ -2,39 +2,49 @@
   div
     .pa-3.d-flex(
       v-if='navMode === `MIXED`'
-      :class='dark ? colors.primary[4] : colors.surface[2]'
+      :class='dark ? colors.surfaceDark.black : colors.surfaceLight.white'
       )
-      v-btn(
+      v-btn.hover-btn(
         depressed
-        :color='dark ? colors.peacock[4] : colors.primary[1]'
+        :color='colors.actionLight.highlightOnLite'
         style='min-width:0;'
         @click='goHome'
         :aria-label='$t(`common:header.home`)'
         )
-        v-icon(size='20') mdi-home
-      v-btn.ml-3(
+        v-icon(
+          size='20'
+          :color='colors.textLight.primary'
+          ) mdi-home
+      v-btn.ml-3.hover-btn(
         v-if='currentMode === `custom`'
         depressed
-        :color='dark ? colors.peacock[4] : colors.primary[1]'
-        style='flex: 1 1 100%;'
+        :color='colors.actionLight.highlightOnLite'
+        style='flex: 1 1 50%;'
         @click='switchMode(`browse`)'
         )
-        v-icon(left) mdi-file-tree
-        .body-2.text-none {{$t('common:sidebar.browse')}}
-      v-btn.ml-3(
+        v-icon(
+          left
+          :color='colors.textLight.primary'
+          ) mdi-file-tree
+        .body-2.text-none(:style='"color:" + colors.textLight.primary') {{$t('common:sidebar.browse')}}
+      v-btn.ml-3.hover-btn(
         v-else-if='currentMode === `browse`'
         depressed
-        :color='dark ? colors.peacock[4] : colors.primary[1]'
-        style='flex: 1 1 100%;'
+        :color='colors.actionLight.highlightOnLite'
+        :style='"flex: 1 1 50%; color:" + colors.textLight.primary'
         @click='switchMode(`custom`)'
         )
-        v-icon(left) mdi-navigation
-        .body-2.text-none {{$t('common:sidebar.mainMenu')}}
+        v-icon(
+          left
+          :color='colors.textLight.primary'
+          ) mdi-navigation
+        .body-2.text-none(:style='"color:" + colors.textLight.primary') {{$t('common:sidebar.mainMenu')}}
     v-divider
     //-> Custom Navigation
     v-list.py-2(
       v-if='currentMode === `custom`'
       dense
+      rounded
       :class='dark ? `dark ` + color : color'
       :dark='dark'
       )
@@ -48,14 +58,14 @@
           v-list-item-avatar(size='24', tile)
             v-icon(
               v-if='item.c.match(/fa[a-z] fa-/)'
-              :color='dark ? `white` : colors.text.darkGrey'
+              :color='dark ? `white` : colors.textLight.primary'
               size='19'
               ) {{ item.c }}
             v-icon(
               v-else
-              :color='dark ? `white` : colors.text.darkGrey'
+              :color='dark ? `white` : colors.textLight.primary'
               ) {{ item.c }}
-          v-tooltip(bottom)
+          v-tooltip(bottom, open-delay=500)
             template(v-slot:activator='{ on }')
               v-list-item-title(
                 v-on='on',
@@ -68,6 +78,7 @@
     v-list.py-2(
       v-else-if='currentMode === `browse`'
       dense
+      rounded
       :class='dark ? `dark ` + color : color'
       :dark='dark'
       )
@@ -83,8 +94,8 @@
             size='18'
             :style='`padding-left: ` + (idx * 8) + `px; width: auto; margin: 0 5px 0 0;`'
             )
-            v-icon(small :color='dark ? `white` : colors.text.darkGrey') mdi-folder-open
-          v-tooltip(bottom)
+            v-icon(small :color='dark ? `white` : colors.textLight.primary') mdi-folder-open
+          v-tooltip(bottom, open-delay=500)
             template(v-slot:activator='{ on }')
               v-list-item-title(
                 v-on='on',
@@ -99,8 +110,8 @@
           :input-value='path === currentParent.path'
           )
           v-list-item-avatar(size='24')
-            v-icon(:color='dark ? `white` : colors.text.darkGrey') mdi-text-box
-          v-tooltip(bottom)
+            v-icon(:color='dark ? `white` : colors.textLight.primary') mdi-text-box
+          v-tooltip(bottom, open-delay=500)
             template(v-slot:activator='{ on }')
               v-list-item-title(
                 v-on='on',
@@ -115,12 +126,12 @@
           v-if='item.isFolder'
           :href='getHref(item)'
           :key='`childfolder-` + item.id'
-          :color='dark ? `white` : colors.text.darkGrey'
+          :color='dark ? `white` : colors.textLight.primary'
           :style='getListItemStyles()'
           )
           v-list-item-avatar(size='24')
-            v-icon(:color='dark ? `white` : colors.text.darkGrey') mdi-folder
-          v-tooltip(bottom)
+            v-icon(:color='dark ? `white` : colors.textLight.primary') mdi-folder
+          v-tooltip(bottom, open-delay=500)
             template(v-slot:activator='{ on }')
               v-list-item-title(
                 v-on='on',
@@ -135,20 +146,26 @@
           :style='getListItemStyles()'
           )
           v-list-item-avatar(size='24')
-            v-icon(:color='dark ? `white` : colors.text.darkGrey') mdi-text-box
-          v-tooltip(bottom)
+            v-icon(:color='dark ? `white` : colors.textLight.primary') mdi-text-box
+          v-tooltip(bottom, open-delay=500)
             template(v-slot:activator='{ on }')
               v-list-item-title(
                 v-on='on',
                 :aria-label='item.title'
               ) {{ item.title }}
             span {{ item.title }}
+    //-> Tree View Navigation
+    nav-tree-view(
+      v-else-if='currentMode === `tree`'
+      :dark='dark'
+    )
 </template>
 
 <script>
 import _ from 'lodash'
 import { get } from 'vuex-pathify'
-import colors from '@/themes/default/js/extended-color-scheme'
+import colors from '@/themes/default/js/color-scheme'
+import NavTreeView from './nav-tree-view.vue'
 
 import pageTreeQuery from '@/graph/common/common-pages-query-tree.gql'
 import pageByPathQuery from '@/graph/common/common-pages-query-page-by-path.gql'
@@ -157,6 +174,9 @@ import childPagesQuery from '@/graph/common/common-pages-query-child-pages.gql'
 /* global siteLangs */
 
 export default {
+  components: {
+    NavTreeView
+  },
   props: {
     color: {
       type: String,
@@ -177,7 +197,7 @@ export default {
   },
   data() {
     return {
-      currentMode: 'custom',
+      currentMode: null, // Will be set in mounted based on navMode
       topLevelPageItems: [],
       currentParent: {
         id: 0,
@@ -208,6 +228,20 @@ export default {
     }
   },
   methods: {
+    async reloadTree() {
+      // Reset local state
+      this.loadedCache = []
+      this.hasFetchedChildren = false
+      this.cachedPageItems = []
+      
+      // Reload based on current mode - force network fetch
+      if (this.currentMode === 'browse') {
+        await this.loadFromCurrentPath(true)
+      }
+      if (this.isReadyToFetchPageChildren) {
+        await this.fetchChildPageItems(true)
+      }
+    },
     switchMode(mode) {
       this.currentMode = mode
       window.localStorage.setItem('navPref', mode)
@@ -218,10 +252,10 @@ export default {
     getHref(item) {
       return item.path ? `/${this.sitePath}/${item.locale}/${item.path}` : `/${this.sitePath}/`
     },
-    async fetchPageTree() {
+    async fetchPageTree(forceNetwork = false) {
       const pageTreeResp = await this.$apollo.query({
         query: pageTreeQuery,
-        fetchPolicy: 'cache-first',
+        fetchPolicy: forceNetwork ? 'network-only' : 'cache-first',
         variables: {
           path: this.path,
           mode: 'ALL',
@@ -248,12 +282,11 @@ export default {
       return invertedAncestors
     },
     async updateRootParentWithActualData() {
-      const homePagepath = "home"
       const homePageResp = await this.$apollo.query({
         query: pageByPathQuery,
         fetchPolicy: 'cache-first',
         variables: {
-          path: homePagepath,
+          path: 'home',
           locale: this.locale,
           siteId: this.siteId
         }
@@ -278,10 +311,10 @@ export default {
         this.parents
       this.$store.commit('page/SET_HAS_CHILDREN', curPage.isFolder)
     },
-    async loadFromCurrentPath() {
+    async loadFromCurrentPath(forceNetwork = false) {
       this.$store.commit(`loadingStart`, 'browse-load')
 
-      const pageTreeItems = await this.fetchPageTree()
+      const pageTreeItems = await this.fetchPageTree(forceNetwork)
       const curPage = _.find(pageTreeItems, [
         'pageId',
         this.$store.get('page/id')
@@ -313,11 +346,11 @@ export default {
         styles = 'padding-left: 48px; '
       }
       if (this.dark) {
-        return styles + 'background-color' + this.colors.primary[4] + '!important;'
+        return styles + 'background-color' + this.colors.surfaceDark.primaryBlueLite + '!important;'
       }
-      return styles + 'background-color' + this.colors.surface[2] + '!important;'
+      return styles + 'background-color' + this.colors.neutral[100] + '!important;'
     },
-    async fetchChildPageItems() {
+    async fetchChildPageItems(forceNetwork = false) {
       this.$store.commit(`loadingStart`, 'browse-load')
 
       if (!this.isParentPage) {
@@ -335,7 +368,7 @@ export default {
 
       const resp = await this.$apollo.query({
         query: childPagesQuery,
-        fetchPolicy: 'cache-first',
+        fetchPolicy: forceNetwork ? 'network-only' : 'cache-first',
         variables: {
           pageId: this.pageId,
           locale: this.locale,
@@ -344,32 +377,41 @@ export default {
       })
       this.childPageItems = _.get(resp, 'data.childPages', [])
 
+      this.hasFetchedChildren = true
       this.$store.commit(`loadingStop`, 'browse-load')
     }
   },
   watch: {
     isReadyToFetchPageChildren(newVal) {
       if (newVal && !this.hasFetchedChildren) {
-        this.hasFetchedChildren = true
         this.fetchChildPageItems()
       }
     }
   },
   mounted() {
     this.currentParent.title = `/ ${this.$t('common:sidebar.root')}`
+    
+    // Set default mode based on admin navigation setting
     if (this.navMode === 'TREE') {
-      this.currentMode = 'browse'
+      this.currentMode = 'tree'  // Default to tree view for Classic Site Tree navigation
     } else if (this.navMode === 'STATIC') {
       this.currentMode = 'custom'
     } else {
       this.currentMode = window.localStorage.getItem('navPref') || 'custom'
     }
+    
     if (this.currentMode === 'browse') {
       this.loadFromCurrentPath()
     }
     if (this.isReadyToFetchPageChildren && !this.hasFetchedChildren) {
       this.fetchChildPageItems()
     }
+    
+    // Listen for page tree refresh events
+    this.$root.$on('reloadPageTree', this.reloadTree)
+  },
+  beforeDestroy() {
+    this.$root.$off('reloadPageTree', this.reloadTree)
   }
 }
 </script>
@@ -379,26 +421,45 @@ export default {
     & > .v-list-item__title {
       color: white !important;
       &:hover {
-        color: mc("ext-teal", "1") !important;
-        text-decoration: underline mc("ext-teal", "1");
+        color: mc('text-dark', 'brand-primary') !important;
+        text-decoration: underline mc('text-dark', 'brand-primary');
       }
     }
   }
 
   .v-list-item {
     & > .v-list-item__title {
-      color: mc('text', 'darkGrey') !important;
+      color: mc('text-light', 'primary') !important;
       &:hover {
-        color: mc('primary', '1') !important;
-        text-decoration: underline  mc('primary', '1');
+        color: mc('text-light', 'brand-primary') !important;
+        text-decoration: underline mc('text-light', 'brand-primary');
       }
     }
   }
 
   #curDir {
-    color: mc('text', 'darkGrey') !important;
+    color: mc('text-light', 'primary') !important;
   }
   .dark #curDir {
     color: white !important;
+  }
+
+  .v-list-item.v-list-item--link.v-list-item--active > .v-list-item__title {
+    font-size: .9rem !important;
+    color: mc('text-light', 'brand-tertiary') !important;
+  }
+
+  .dark .v-list-item.v-list-item--link.v-list-item--active > .v-list-item__title {
+  color: mc('text-dark', 'brand-primary') !important;
+  }
+
+  .v-btn {
+    &.hover-btn {
+      border-radius: 20px;
+
+      &:hover {
+        background-color: mc('action-dark', 'highlight-on-lite') !important;
+      }
+    }
   }
 </style>

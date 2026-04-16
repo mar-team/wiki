@@ -4,6 +4,7 @@ const pageHelper = require('../helpers/page')
 const _ = require('lodash')
 const CleanCSS = require('clean-css')
 const moment = require('moment')
+const pageResolver = require('../graph/resolvers/page')
 const qs = require('querystring')
 const { useClientDbPooling } = require('../core/db')
 
@@ -11,8 +12,10 @@ const { useClientDbPooling } = require('../core/db')
 
 const tmplCreateRegex = /^[0-9]+(,[0-9]+)?$/
 
-const getSite = async (sitePath) => {
-  return WIKI.models.sites.getSiteByPath({ path: sitePath, forceReload: true })
+// Retrieve a site using cache. Optionally force reload if admin passes ?reload=1.
+const getSite = async (sitePath, req) => {
+  const shouldForce = req?.query?.reload === '1' && WIKI.auth?.checkAccess?.(req.user, ['manage:sites', 'manage:system'])
+  return WIKI.models.sites.getSiteByPath({ path: sitePath, forceReload: shouldForce })
 }
 
 const GUEST_ACCOUNT_ID = 2 // yes, it's hardcoded
@@ -43,6 +46,30 @@ router.get('/healthz', (req, res, next) => {
   } else {
     res.status(200).json({ ok: true }).end()
   }
+})
+
+/**
+ * Sites Cache Metrics (Admin Only)
+ * Returns reload count, version, age, and site count.
+ */
+router.get('/admin/metrics/sites-cache', (req, res) => {
+  if (!WIKI.auth.checkAccess(req.user, ['manage:system', 'manage:sites'])) {
+    return res.status(403).json({ ok: false, error: 'unauthorized' })
+  }
+  const meta = WIKI.sitesCacheMeta || {}
+  const ageMs = meta.loadedAt ? Date.now() - meta.loadedAt : null
+  res.json({
+    ok: true,
+    reloads: WIKI.__sitesReloadCount || 0,
+    hits: WIKI.__sitesCacheHits || 0,
+    misses: WIKI.__sitesCacheMisses || 0,
+    reloadIntervals: WIKI.__sitesReloadIntervals || [],
+    version: WIKI.models.sites.getCacheVersion(),
+    loadedAt: meta.loadedAt || null,
+    ageMs,
+    siteCount: WIKI.sites ? Object.keys(WIKI.sites).length : 0,
+    ttl: WIKI.config.sitesCacheTTL || 60000
+  })
 })
 
 /**
@@ -91,12 +118,12 @@ router.get(['/d', '/d/:sitePath/*'], async (req, res, next) => {
   if (versionId > 0) {
     if (!WIKI.auth.checkAccess(req.user, ['read:history'], pageArgs)) {
       _.set(res.locals, 'pageMeta.title', 'Unauthorized')
-      return res.render('unauthorized', { action: 'downloadVersion' })
+      return res.status(403).render('unauthorized', { action: 'downloadVersion' })
     }
   } else {
     if (!WIKI.auth.checkAccess(req.user, ['read:source'], pageArgs)) {
       _.set(res.locals, 'pageMeta.title', 'Unauthorized')
-      return res.render('unauthorized', { action: 'download' })
+      return res.status(403).render('unauthorized', { action: 'download' })
     }
   }
 
@@ -161,7 +188,7 @@ router.get(['/e', '/e/:sitePath/*'], async (req, res, next) => {
     // -> EDIT MODE
     if (!(effectivePermissions.pages.write || effectivePermissions.pages.manage)) {
       _.set(res.locals, 'pageMeta.title', 'Unauthorized')
-      return res.render('unauthorized', { action: 'edit' })
+      return res.status(403).render('unauthorized', { action: 'edit' })
     }
 
     // -> Get page tags
@@ -190,7 +217,7 @@ router.get(['/e', '/e/:sitePath/*'], async (req, res, next) => {
     // -> CREATE MODE
     if (!effectivePermissions.pages.write) {
       _.set(res.locals, 'pageMeta.title', 'Unauthorized')
-      return res.render('unauthorized', { action: 'create' })
+      return res.status(403).render('unauthorized', { action: 'create' })
     }
 
     _.set(res.locals, 'pageMeta.title', `New Page`)
@@ -236,7 +263,7 @@ router.get(['/e', '/e/:sitePath/*'], async (req, res, next) => {
         }
         if (!WIKI.auth.checkAccess(req.user, ['read:history'], { path: pageVersion.path, locale: pageVersion.locale, siteId: site.id })) {
           _.set(res.locals, 'pageMeta.title', 'Unauthorized')
-          return res.render('unauthorized', { action: 'sourceVersion' })
+          return res.status(403).render('unauthorized', { action: 'sourceVersion' })
         }
         page.content = Buffer.from(pageVersion.content).toString('base64')
         page.editorKey = pageVersion.editor
@@ -251,7 +278,7 @@ router.get(['/e', '/e/:sitePath/*'], async (req, res, next) => {
         }
         if (!WIKI.auth.checkAccess(req.user, ['read:source'], { path: pageOriginal.path, locale: pageOriginal.locale, siteId: pageOriginal.siteId })) {
           _.set(res.locals, 'pageMeta.title', 'Unauthorized')
-          return res.render('unauthorized', { action: 'source' })
+          return res.status(403).render('unauthorized', { action: 'source' })
         }
         page.content = Buffer.from(pageOriginal.content).toString('base64')
         page.editorKey = pageOriginal.editorKey
@@ -407,12 +434,12 @@ router.get(['/s', '/s/:sitePath/*'], async (req, res, next) => {
   if (versionId > 0) {
     if (!effectivePermissions.history.read) {
       _.set(res.locals, 'pageMeta.title', 'Unauthorized')
-      return res.render('unauthorized', { action: 'sourceVersion' })
+      return res.status(403).render('unauthorized', { action: 'sourceVersion' })
     }
   } else {
     if (!effectivePermissions.source.read) {
       _.set(res.locals, 'pageMeta.title', 'Unauthorized')
-      return res.render('unauthorized', { action: 'source' })
+      return res.status(403).render('unauthorized', { action: 'source' })
     }
   }
 
@@ -639,6 +666,52 @@ const renderPage = async (req, res, next) => {
         page.toc = JSON.stringify(page.toc)
       }
 
+      // -> Prepare Recent Activities Data for Home Page
+      let recentActivities = null
+      
+      if ((pageArgs.path === 'home' || pageArgs.path === '') && site.show_recent_activities) {
+        try {
+          // Fetch 6 pages to check if there are more than 5
+          const recentPages = await pageResolver.Query.listPages(
+            null,
+            {
+              siteId: site.id,
+              limit: 6,
+              orderBy: 'UPDATED',
+              orderByDirection: 'DESC'
+            },
+            { req },
+            null
+          )
+
+          if (recentPages && recentPages.length > 0) {
+            // Check if there are more than 5 pages
+            const hasMore = recentPages.length > 5
+            
+            // Only send the first 5 pages to the client
+            const pagesToSend = recentPages.slice(0, 5)
+            
+            recentActivities = {
+              pages: pagesToSend.map(p => ({
+                id: p.id,
+                title: p.title,
+                path: p.path,
+                locale: p.locale,
+                createdAt: p.createdAt,
+                updatedAt: p.updatedAt,
+                authorName: p.authorName || 'Unknown'
+              })),
+              hasMore: hasMore,
+              siteId: site.id,
+              sitePath: site.path,
+              useNamespacing: WIKI.config.lang.namespacing
+            }
+          }
+        } catch (err) {
+          WIKI.logger.warn('Failed to load recent activities:', err)
+        }
+      }
+
       // -> Inject comments variables
       const commentTmpl = {
         codeTemplate: WIKI.data.commentProvider.codeTemplate,
@@ -669,7 +742,8 @@ const renderPage = async (req, res, next) => {
         comments: commentTmpl,
         effectivePermissions,
         pageFilename,
-        site
+        site,
+        recentActivities
       })
     } catch (err) {
       next(err)

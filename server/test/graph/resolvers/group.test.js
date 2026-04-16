@@ -6,6 +6,7 @@ const TestGroup = {
 }
 
 const WIKI = {
+  logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn() },
   auth: {
     isSuperAdmin: jest.fn(),
     isSiteAdmin: jest.fn(),
@@ -234,6 +235,14 @@ describe('Group Resolvers', () => {
         expect(WIKI.events.outbound.emit).toHaveBeenCalledWith('addAuthRevoke', { id: TestGroup.SITE_ADMINS, kind: 'g' })
       })
 
+      it('should allow non-super admin to assign write:users permission', async () => {
+        WIKI.models.groups.query.mockReturnValue(getGroupQueryMock())
+        const result = await groupResolvers.GroupMutation.update(null, { id: TestGroup.SITE_ADMINS, name: 'Updated Group', permissions: ['write:users'], rules: [] }, { req })
+        expect(result.responseResult.message).toBe('Group has been updated.')
+        expect(WIKI.auth.revokeUserTokens).toHaveBeenCalledWith({ id: TestGroup.SITE_ADMINS, kind: 'g' })
+        expect(WIKI.events.outbound.emit).toHaveBeenCalledWith('addAuthRevoke', { id: TestGroup.SITE_ADMINS, kind: 'g' })
+      })
+
       it('should throw error if user tries to update group with invalid site access', async () => {
         WIKI.models.groups.query.mockReturnValue(getGroupQueryMock())
         WIKI.auth.checkAccess.mockReturnValue(false)
@@ -260,7 +269,7 @@ describe('Group Resolvers', () => {
         await expect(groupResolvers.GroupMutation.update(null, { id: 456, name: 'Duplicate Group', permissions: [], rules: [{ sites: ['SITE-4'] }] }, { req }))
           .rejects
           .toThrow('A group with this name already exists.')
-    })
+      })
       it('should update group if name is unique or same as current group', async () => {
         // Case: name is unique
         WIKI.models.groups.query.mockReturnValue(getGroupQueryMock({ findOneResult: null }))
@@ -292,14 +301,13 @@ describe('Group Resolvers', () => {
         WIKI.auth.checkExclusiveAccess.mockReturnValue(false)
         WIKI.auth.checkAccess.mockReturnValue(true)
 
+        const relateMock = jest.fn().mockResolvedValue(true)
         WIKI.models = {
           groups: {
             query: jest.fn(() => ({
               findById: jest.fn().mockResolvedValue({
                 id: TestGroup.SITE_ADMINS,
-                $relatedQuery: jest.fn(() => ({
-                  relate: jest.fn().mockResolvedValue(true)
-                }))
+                $relatedQuery: jest.fn(() => ({ relate: relateMock }))
               }),
               join: jest.fn().mockReturnThis(),
               where: jest.fn().mockReturnThis()
@@ -314,6 +322,9 @@ describe('Group Resolvers', () => {
             where: jest.fn(() => ({ first: jest.fn().mockResolvedValue(null) }))
           }))
         }
+
+        // Expose relateMock for tests
+        WIKI.__tests = { relateMock }
 
         global.WIKI = WIKI
       })
@@ -363,14 +374,11 @@ describe('Group Resolvers', () => {
         await expect(assignUser(null, args, { req })).rejects.toThrow('Invalid User ID')
       })
 
-      it('throws an error if the user is already in the group', async () => {
-        WIKI.models.knex = jest.fn(() => ({
-          where: jest.fn(() => ({ first: jest.fn().mockResolvedValue(true) }))
-        }))
+      it('throws an error if the user is already in the group (unique constraint violation)', async () => {
+        // Simulate the relate call throwing a Postgres unique violation
+        WIKI.__tests.relateMock.mockRejectedValueOnce({ code: '23505', message: 'duplicate key value violates unique constraint "user_groups_user_group_unique"' })
         const args = { groupId: TestGroup.SITE_ADMINS, userId: 5 }
-        await expect(assignUser(null, args, { req })).rejects.toThrow(
-          'User is already assigned to group.'
-        )
+        await expect(assignUser(null, args, { req })).rejects.toThrow('User is already assigned to group.')
       })
     })
 
@@ -615,31 +623,30 @@ describe('Group Resolvers', () => {
       })
     })
 
-
-  describe('create', () => {
-    function getGroupCreateQueryMock({ findOneResult = null, insertAndFetchResult = { id: 999, name: 'Unique Group' } } = {}) {
-      return {
-        findOne: jest.fn().mockResolvedValue(findOneResult),
-        insertAndFetch: jest.fn().mockResolvedValue(insertAndFetchResult)
+    describe('create', () => {
+      function getGroupCreateQueryMock({ findOneResult = null, insertAndFetchResult = { id: 999, name: 'Unique Group' } } = {}) {
+        return {
+          findOne: jest.fn().mockResolvedValue(findOneResult),
+          insertAndFetch: jest.fn().mockResolvedValue(insertAndFetchResult)
+        }
       }
-    }
-    it('should throw error if group name already exists', async () => {
-      WIKI.models.groups.query.mockReturnValue(getGroupCreateQueryMock({ findOneResult: { id: 123, name: 'Existing Group' } }))
-      await expect(groupResolvers.GroupMutation.create(null, { name: 'Existing Group', permissions: [], rules: [] }, { req }))
-        .rejects
-        .toThrow('A group with this name already exists.')
-    })
+      it('should throw error if group name already exists', async () => {
+        WIKI.models.groups.query.mockReturnValue(getGroupCreateQueryMock({ findOneResult: { id: 123, name: 'Existing Group' } }))
+        await expect(groupResolvers.GroupMutation.create(null, { name: 'Existing Group', permissions: [], rules: [] }, { req }))
+          .rejects
+          .toThrow('A group with this name already exists.')
+      })
 
-    it('should create group if name is unique', async () => {
-      WIKI.models.groups.query.mockReturnValue(getGroupCreateQueryMock())
-      WIKI.auth.isSuperAdmin.mockReturnValue(true)
-      WIKI.models.sites = {
-        getSiteIdByPath: jest.fn().mockResolvedValue('SITE-DEFAULT')
-      }
-      const result = await groupResolvers.GroupMutation.create(null, { name: 'Unique Group', permissions: [], rules: [{}] }, { req })
-      expect(result.group.name).toBe('Unique Group')
-      expect(result.responseResult.message).toBe('Group created successfully.')
+      it('should create group if name is unique', async () => {
+        WIKI.models.groups.query.mockReturnValue(getGroupCreateQueryMock())
+        WIKI.auth.isSuperAdmin.mockReturnValue(true)
+        WIKI.models.sites = {
+          getSiteIdByPath: jest.fn().mockResolvedValue('SITE-DEFAULT')
+        }
+        const result = await groupResolvers.GroupMutation.create(null, { name: 'Unique Group', permissions: [], rules: [{}] }, { req })
+        expect(result.group.name).toBe('Unique Group')
+        expect(result.responseResult.message).toBe('Group created successfully.')
+      })
     })
-  })
   })
 })

@@ -87,7 +87,7 @@ module.exports = {
         .column([
           'pages.id',
           'pages.path',
-          { locale: 'localeCode' },
+          { locale: 'pages.localeCode' },
           'pages.title',
           'pages.description',
           'pages.isPublished',
@@ -96,11 +96,13 @@ module.exports = {
           'pages.contentType',
           'pages.createdAt',
           'pages.updatedAt',
+          'author.name as authorName',
           'pages.siteId',
           'sites.name as siteName',
           'sites.path as sitePath'
         ])
         .leftJoin('sites', 'pages.siteId', 'sites.id')
+        .leftJoin('users as author', 'pages.authorId', 'author.id')
         .withGraphJoined('tags')
         .modifyGraph('tags', (builder) => {
           builder.select('tag')
@@ -108,6 +110,9 @@ module.exports = {
         .modify((queryBuilder) => {
           if (args.limit) {
             queryBuilder.limit(args.limit)
+          }
+          if (args.offset) {
+            queryBuilder.offset(args.offset)
           }
           if (args.locale) {
             queryBuilder.where('localeCode', args.locale)
@@ -187,6 +192,7 @@ module.exports = {
           _.every(args.tags, (t) => _.includes(r.tags, t))
         )
       }
+      
       return results
     },
     /**
@@ -335,7 +341,7 @@ module.exports = {
             builder.where('parent', null)
           }
         })
-        .orderBy([{ column: 'isFolder', order: 'desc' }, 'title'])
+        .orderBy('child_position')
       return results
         .filter((r) => {
           return WIKI.auth.checkAccess(context.req.user, ['read:pages'], {
@@ -383,7 +389,11 @@ module.exports = {
           builder.where('siteId', args.siteId)
           switch (args.mode) {
             case 'FOLDERS':
-              builder.andWhere('isFolder', true)
+              // Include folders OR pages that are at folder paths (page-as-folder)
+              builder.andWhere((subBuilder) => {
+                subBuilder.where('isFolder', true)
+                  .orWhereNotNull('pageId')
+              })
               break
             case 'PAGES':
               builder.andWhereNotNull('pageId')
@@ -407,7 +417,7 @@ module.exports = {
             }
           }
         })
-        .orderBy([{ column: 'isFolder', order: 'desc' }, 'title'])
+        .orderBy('child_position')
       return results
         .filter((r) => {
           return WIKI.auth.checkAccess(context.req.user, ['read:pages'], {
@@ -955,6 +965,35 @@ module.exports = {
           )
         }
       } catch (err) {
+        return graphHelper.generateError(err)
+      }
+    },
+    /**
+     * Reorder pages
+     */
+    async reorderPages(obj, args, context) {
+      try {
+        // Verify user has manage:pages permission
+        if (!WIKI.auth.checkAccess(context.req.user, ['manage:pages'], {
+          siteId: context.req.user.siteId
+        })) {
+          throw new WIKI.Error.PageUpdateForbidden()
+        }
+
+        // Update child_position for each page
+        for (const order of args.orders) {
+          await WIKI.models.knex('pageTree')
+            .where('id', order.pageId)
+            .update({ child_position: order.position })
+        }
+
+        return {
+          responseResult: graphHelper.generateSuccess(
+            'Pages reordered successfully.'
+          )
+        }
+      } catch (err) {
+        WIKI.logger.error('Failed to reorder pages:', err)
         return graphHelper.generateError(err)
       }
     }

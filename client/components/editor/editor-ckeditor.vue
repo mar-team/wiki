@@ -2,7 +2,7 @@
   .editor-ckeditor
     div(ref='toolbarContainer')
     div.contents(ref='editor')
-    v-system-bar.editor-ckeditor-sysbar(dark, status, color='grey darken-3')
+    v-system-bar.editor-ckeditor-sysbar(dark, status, :color='colors.surfaceDark.black')
       .caption.editor-ckeditor-sysbar-locale {{locale.toUpperCase()}}
       .caption.px-3 /{{path}}
       template(v-if='$vuetify.breakpoint.mdAndUp')
@@ -20,6 +20,7 @@ import { get, sync } from 'vuex-pathify'
 import DecoupledEditor from './ckeditor/ckeditor'
 import EditorConflict from './ckeditor/conflict.vue'
 import { html as beautify } from 'js-beautify/js/lib/beautifier.min.js'
+import colors from '@/themes/default/js/color-scheme'
 
 /* global siteLangs */
 
@@ -43,7 +44,8 @@ export default {
       },
       content: '',
       isConflict: false,
-      insertLinkDialog: false
+      insertLinkDialog: false,
+      colors: colors
     }
   },
   computed: {
@@ -54,55 +56,6 @@ export default {
     path: get('page/path'),
     activeModal: sync('editor/activeModal'),
     sitePath: get('page/sitePath')
-  },
-  methods: {
-    insertLink() {
-      this.insertLinkDialog = true
-    },
-    insertLinkHandler({ locale, path }) {
-      this.editor.execute('link', siteLangs.length > 0 ? `/${this.sitePath}/${locale}/${path}` : `/${this.sitePath}/${path}`)
-    },
-    insertDiagram() {
-      this.isDiagramEdit = false
-      this.toggleModal('editorModalDrawio')
-    },
-    editDiagram(diagram) {
-      this.isDiagramEdit = true
-      this.$store.set('editor/activeModalData', diagram)
-      this.toggleModal('editorModalDrawio')
-    },
-    toggleModal(modalKey) {
-      this.activeModal = (this.activeModal === modalKey) ? '' : modalKey
-    },
-    getSelectedWidget() {
-      return document.getElementsByClassName('ck-widget_selected').item(0)
-    },
-    getSelectedDiagram() {
-      const selection = this.getSelectedWidget()
-      return selection.getElementsByTagName('img').item(0).getAttribute('src')
-    },
-    getDiagramCaption() {
-      const selection = this.getSelectedWidget()
-      return selection.getElementsByTagName('figcaption')?.item(0)?.firstChild.data
-    },
-    setDiagramCaption(caption) {
-      const selection = this.getSelectedWidget()
-
-      const userAgent = navigator.userAgent
-      const chromeRE = /Chrome\/(\d{3})\.\d/
-      const chromeMatch = chromeRE.exec(userAgent)
-      const firefoxRE = /Firefox\/(\d{3})\.\d/
-      const firefoxMatch = firefoxRE.exec(userAgent)
-
-      if ((firefoxMatch && Number(firefoxMatch[1]) >= 123) ||
-        (chromeMatch && Number(chromeMatch[1]) >= 124)) {
-        // The caption is sanatized by the ckEditor
-        selection.getElementsByTagName('figcaption').item(0).setHTMLUnsafe(caption)
-      } else if (chromeMatch && Number(chromeMatch[1]) < 124) {
-        // setHTMLUnsafe is not available for earlier browser versions
-        selection.getElementsByTagName('figcaption').item(0).setHTML(caption)
-      }
-    }
   },
   async mounted() {
     this.$store.set('editor/editorKey', 'ckeditor')
@@ -227,7 +180,108 @@ export default {
 
       // Set the mentions in the Vuex store
       this.$store.set('editor/mentions', Array.from(mergedMentions))
+
+      // Apply mermaid color protection after content changes
+      this.$nextTick(() => {
+        this.applyMermaidColorProtection()
+      })
     })
+
+    // Apply mermaid protection initially
+    this.$nextTick(() => {
+      this.applyMermaidColorProtection()
+    })
+
+    // Watch for theme changes
+    this.$watch('$vuetify.theme.dark', () => {
+      this.$nextTick(() => {
+        this.applyMermaidColorProtection()
+      })
+    })
+  },
+  methods: {
+    applyMermaidColorProtection() {
+      // Apply color protection to mermaid diagrams in CKEditor content area
+      // In CKEditor, diagrams are embedded as images with SVG data URIs
+      // Use the appropriate color-scheme based on Vuetify theme, but prevent browser override
+      const colorScheme = this.$vuetify.theme.dark ? 'dark' : 'light'
+
+      if (this.$refs.editor) {
+        // Protect .mermaid elements (if any exist)
+        const mermaidContainers = this.$refs.editor.querySelectorAll('.mermaid')
+        mermaidContainers.forEach(container => {
+          container.style.setProperty('color-scheme', colorScheme, 'important')
+          container.style.setProperty('forced-color-adjust', 'none', 'important')
+          container.style.setProperty('filter', 'none', 'important')
+
+          const svgs = container.querySelectorAll('svg')
+          svgs.forEach(svg => {
+            svg.style.setProperty('color-scheme', colorScheme, 'important')
+            svg.style.setProperty('forced-color-adjust', 'none', 'important')
+            svg.style.setProperty('filter', 'none', 'important')
+          })
+        })
+
+        // Protect all images (diagrams are inserted as base64 SVG images)
+        const images = this.$refs.editor.querySelectorAll('img')
+        images.forEach(img => {
+          // Apply to all images, but especially SVG data URIs
+          if (img.src && (img.src.startsWith('data:image/svg') || img.src.includes('diagram'))) {
+            img.style.setProperty('color-scheme', colorScheme, 'important')
+            img.style.setProperty('forced-color-adjust', 'none', 'important')
+            img.style.setProperty('filter', 'none', 'important')
+          }
+        })
+
+        // Also protect figure elements that contain images (CKEditor wraps images in figures)
+        const figures = this.$refs.editor.querySelectorAll('figure')
+        figures.forEach(figure => {
+          figure.style.setProperty('color-scheme', colorScheme, 'important')
+          figure.style.setProperty('forced-color-adjust', 'none', 'important')
+          figure.style.setProperty('filter', 'none', 'important')
+        })
+      }
+    },
+    insertLink() {
+      this.insertLinkDialog = true
+    },
+    insertLinkHandler({ locale, path }) {
+      this.editor.execute('link', siteLangs.length > 0 ? `/${this.sitePath}/${locale}/${path}` : `/${this.sitePath}/${path}`)
+    },
+    insertDiagram() {
+      this.isDiagramEdit = false
+      this.toggleModal('editorModalDrawio')
+    },
+    editDiagram(diagram) {
+      this.isDiagramEdit = true
+      this.$store.set('editor/activeModalData', diagram)
+      this.toggleModal('editorModalDrawio')
+    },
+    toggleModal(modalKey) {
+      this.activeModal = (this.activeModal === modalKey) ? '' : modalKey
+    },
+    getSelectedWidget() {
+      return document.getElementsByClassName('ck-widget_selected').item(0)
+    },
+    getSelectedDiagram() {
+      const selection = this.getSelectedWidget()
+      return selection.getElementsByTagName('img').item(0).getAttribute('src')
+    },
+    getDiagramCaption() {
+      const selection = this.getSelectedWidget()
+      return selection.getElementsByTagName('figcaption')?.item(0)?.firstChild.data
+    },
+    setDiagramCaption(caption) {
+      this.editor.model.change(writer => {
+        const selectedElement = this.editor.model.document.selection.getSelectedElement()
+
+        if (selectedElement && selectedElement.name === 'imageBlock') {
+          const captionElement = writer.createElement('caption')
+          writer.insertText(caption, captionElement)
+          writer.append(captionElement, selectedElement)
+        }
+      })
+    }
   },
   beforeDestroy() {
     if (this.editor) {
@@ -238,12 +292,12 @@ export default {
 }
 </script>
 
-<style lang="scss">
+<style lang="scss" scoped>
 $editor-height: calc(100vh - 64px - 24px);
 $editor-height-mobile: calc(100vh - 56px - 16px);
 
 .editor-ckeditor {
-  background-color: rgba(255,255,255,.25);
+  background-color: mc('surface-light', 'disabled');
   display: inline-flex;
   display: flex;
   flex-flow: column nowrap;
@@ -252,7 +306,7 @@ $editor-height-mobile: calc(100vh - 56px - 16px);
   position: relative;
 
   @at-root .theme--dark & {
-    background-color: mc('grey', '900');
+    background-color: mc('surface-dark', 'disabled');
   }
 
   @include until($tablet) {
@@ -264,7 +318,7 @@ $editor-height-mobile: calc(100vh - 56px - 16px);
     padding-left: 0;
 
     &-locale {
-      background-color: rgba(255, 255, 255, 0.25);
+      background-color: mc("surface-dark", "secondary-neutral-lite");
       display: inline-flex;
       padding: 0 12px;
       height: 24px;
@@ -275,6 +329,7 @@ $editor-height-mobile: calc(100vh - 56px - 16px);
   }
 
   .contents {
+
     table {
       margin: inherit;
     }
@@ -285,21 +340,15 @@ $editor-height-mobile: calc(100vh - 56px - 16px);
     }
   }
 
-  .ck.ck-toolbar {
-    border: none;
-    justify-content: center;
-    background-color: mc('grey', '300');
-    color: #FFF;
-  }
-
   .ck.ck-toolbar__items {
     justify-content: center;
   }
 
   > .ck-editor__editable {
-    background-color: mc('grey', '100');
+    background-color: mc('surface-light', 'page-background');
+    color: mc('text-light', 'primary');
     overflow-y: auto;
-    overflow-x: hidden;
+    overflow-x: auto;
     padding: 2rem;
     box-shadow: 0 0 5px hsla(0, 0, 0, .1);
     margin: 1rem auto 0;
@@ -307,9 +356,80 @@ $editor-height-mobile: calc(100vh - 56px - 16px);
     min-height: calc(100vh - 64px - 24px - 1rem - 40px);
     border-radius: 5px;
 
+    // Allow wide tables to scroll horizontally inside the editor.
+    // CKEditor renders tables in wrappers like `figure.table` or `div.table-wrap` (and sometimes `.table-container`).
+    // In view mode these wrappers already have horizontal scrolling, but while editing we must not hide overflow.
+    figure.table,
+    div.table-wrap,
+    .table-container {
+      display: block;
+      max-width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    // Ensure the table can exceed the wrapper width so scrolling actually appears.
+    figure.table > table,
+    div.table-wrap > table,
+    .table-container > table {
+      width: max-content;
+      min-width: 100%;
+    }
+
+    // If the editor content includes a bare <table> (e.g., migrated HTML or pasted content),
+    // make it horizontally scrollable too.
+    table {
+      display: block;
+      max-width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      width: max-content;
+      min-width: 100%;
+    }
+
+    // CKEditor applies `table-layout: fixed` on resized tables via `.ck-table-resized`.
+    // That can cause content to clip or columns to collapse. Undo it so the browser can size
+    // columns naturally while still allowing horizontal scrolling.
+    // (Use `auto` rather than `unset` for best cross-browser CSS support.)
+    &.ck-content .ck-widget.table .ck-table-resized {
+      table-layout: auto;
+    }
+
+    // Tables with images: enforce a minimum column width so image-only columns
+    // don't collapse while editing.
+    td:has(img),
+    th:has(img) {
+      min-width: 25px;
+    }
+
+    // Fallback for browsers without :has().
+    td img,
+    th img {
+      min-width: 25px;
+    }
+
+    // Prevent browser from inverting colors on diagrams/images
+    img, figure, svg, .mermaid {
+      color-scheme: initial !important;
+      forced-color-adjust: none !important;
+      filter: none !important;
+    }
+
+    // Specifically target SVG data URIs (diagrams)
+    img[src^="data:image/svg"] {
+      color-scheme: only light !important;
+      filter: none !important;
+    }
+
     @at-root .theme--dark & {
-      background-color: #303030;
-      color: #FFF;
+      background-color: mc('surface-dark', 'page-background');
+      color: mc('text-dark', 'primary');
+
+      // In dark mode, still prevent inversion of diagram images
+      img[src^="data:image/svg"] {
+        color-scheme: only light !important;
+        filter: none !important;
+      }
     }
 
     @include until($widescreen) {
@@ -339,10 +459,10 @@ $editor-height-mobile: calc(100vh - 56px - 16px);
     &.ck .ck-editor__nested-editable:focus,
     .ck-widget.table td.ck-editor__nested-editable.ck-editor__nested-editable_focused,
     .ck-widget.table th.ck-editor__nested-editable.ck-editor__nested-editable_focused {
-      background-color: mc('grey', '100');
+      background-color: mc('neutral', '100');
 
       @at-root .theme--dark & {
-        background-color: mc('grey', '900');
+        background-color: mc('neutral', '900');
       }
     }
   }
@@ -354,5 +474,82 @@ $editor-height-mobile: calc(100vh - 56px - 16px);
     color: #ffffff;
     background-color: mc('blue', '900') !important;
   }
+}
+</style>
+
+// Global styling
+<style lang="scss">
+.editor-ckeditor {
+
+  .ck.ck-toolbar.ck-toolbar_grouping {
+    border: none;
+    justify-content: center;
+    background-color: mc('surface-light', 'tertiary-neutral-lite');
+
+    &.ck-disabled {
+      color: mc('text-light', 'disabled');
+    }
+
+    .ck-button:hover {
+      &:not(.ck-disabled) {
+        background: mc('surface-light', 'secondary-neutral-lite');
+      }
+      &.ck-disabled {
+        background: transparent;
+        &> .ck-icon {
+          background-color: transparent;
+        }
+      }
+    }
+
+    @at-root .theme--dark & {
+      background-color: mc('surface-dark', 'tertiary-neutral-lite');
+
+      .ck.ck-dropdown__panel {
+        border: mc('border-dark', 'inverse');
+
+        .ck.ck-button.ck-list-item-button {
+          background: mc('surface-dark', 'primary-neutral-lite');
+
+          &:hover {
+            color: mc('action-dark', 'active')
+          }
+        }
+      }
+
+      .ck.ck-list {
+        background-color: mc('surface-dark', 'primary-neutral-lite');
+        border-radius: 0px;
+      }
+
+      .ck.ck-dropdown__button:hover:not(.ck-disabled) > *,
+      .ck.ck-splitbutton.ck-dropdown__button.ck-splitbutton_open > *,
+      .ck.ck-dropdown > .ck-button.ck-splitbutton.ck-on {
+        background-color: mc('surface-dark', 'primary-neutral-lite');
+      }
+
+      .ck-button, .ck-dropdown {
+        color: mc('text-dark', 'primary');
+
+        &:hover:not(.ck-disabled),
+        &.ck-on,
+        .ck.ck-dropdown__panel,
+        .ck.ck-toolbar,
+        .ck-toolbar__items,
+        .ck-color-grids-fragment {
+          background: mc('surface-dark', 'primary-neutral-lite');
+          color: mc('action-dark', 'active')
+        }
+      }
+    }
+  }
+}
+
+:root {
+  --ck-highlight-marker-yellow: #{mc('yellow', '600')};
+  --ck-highlight-marker-green: #{mc('green', '600')};
+  --ck-highlight-marker-blue: #{mc('blue', '600')};
+  --ck-highlight-marker-red: #{mc('red', '700')};
+  --ck-highlight-marker-pink: #{mc('red', '400')};
 }
 </style>

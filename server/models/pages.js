@@ -875,6 +875,10 @@ module.exports = class Page extends Model {
       opts.isPrivate
     )
 
+    // Store original path before updating (for child page queries)
+    const originalPath = page.path
+    const originalLocale = page.localeCode
+
     // -> Move page
     const destinationTitle =
       page.title === _.last(page.path.split('/')) ?
@@ -891,6 +895,52 @@ module.exports = class Page extends Model {
       .findById(page.id)
     await WIKI.models.pages.deletePageFromCache(page.hash)
     WIKI.events.outbound.emit('deletePageFromCache', page.hash)
+
+    // -> Move child pages (pages with paths starting with originalPath/)
+    const childPages = await WIKI.models.pages
+      .query()
+      .where('localeCode', originalLocale)
+      .where('siteId', page.siteId)
+      .where('path', 'like', `${originalPath}/%`)
+    
+    for (const childPage of childPages) {
+      // Calculate new path for child page
+      const childRelativePath = childPage.path.substring(originalPath.length)  // e.g., "/subpage" or "/folder/subpage"
+      const newChildPath = opts.destinationPath + childRelativePath
+      
+      const childDestHash = await WIKI.models.pages.generatePageHash(
+        childPage.siteId,
+        newChildPath,
+        opts.destinationLocale,
+        childPage.isPrivate
+      )
+      
+      // Update child page path
+      await WIKI.models.pages
+        .query()
+        .patch({
+          path: newChildPath,
+          localeCode: opts.destinationLocale,
+          hash: childDestHash
+        })
+        .findById(childPage.id)
+      
+      // Clear cache for child page
+      await WIKI.models.pages.deletePageFromCache(childPage.hash)
+      WIKI.events.outbound.emit('deletePageFromCache', childPage.hash)
+      
+      // Update search index for child page
+      try {
+        await WIKI.data.searchEngine.renamed({
+          ...childPage,
+          destinationPath: newChildPath,
+          destinationLocaleCode: opts.destinationLocale,
+          destinationHash: childDestHash
+        })
+      } catch (err) {
+        WIKI.logger.warn(`Failed to update search index for child page ${childPage.path}: ${err.message}`)
+      }
+    }
 
     // -> Rebuild page tree
     await WIKI.models.pages.rebuildTree(page)
@@ -1349,9 +1399,139 @@ module.exports = class Page extends Model {
         //   }
         // })
         .first()
+        .then(async (page) => {
+          if (page?.content) {
+            // Clean up anonymized user mentions for editing
+            page.content = await WIKI.models.pages.cleanAnonymizedMentionsForEditing(page.content, page.contentType)
+          }
+          return page
+        })
     } catch (err) {
       WIKI.logger.warn(err)
       throw err
+    }
+  }
+
+  /**
+   * Extract unique mention emails from cheerio DOM
+   * @private
+   */
+  static _extractMentionEmails($) {
+    const mentionEmails = []
+    $('span.mention').each((i, elm) => {
+      const email = $(elm).attr('data-mention')
+      if (email && !mentionEmails.includes(email)) {
+        mentionEmails.push(email)
+      }
+    })
+    return mentionEmails
+  }
+
+  /**
+   * Get set of existing user emails from database
+   * @private
+   */
+  static async _getExistingUserEmails(emails) {
+    const existingUsers = await WIKI.models.users.query()
+      .select('email')
+      .whereIn('email', emails)
+      .andWhereNot('email', 'deleted@deleted.deleted')
+    return new Set(existingUsers.map(u => u.email))
+  }
+
+  /**
+   * Check if mention should be anonymized
+   * @private
+   */
+  static _shouldAnonymizeMention(mentionEmail, mentionText, existingEmails) {
+    return mentionEmail === 'deleted@deleted.deleted' ||
+           mentionEmail === 'AnonymousUser' ||
+           mentionText === '@AnonymousUser' ||
+           (mentionEmail && !existingEmails.has(mentionEmail))
+  }
+
+  /**
+   * Clean HTML content mentions
+   * @private
+   */
+  static async _cleanHtmlMentions(content) {
+    const $ = cheerio.load(content, { decodeEntities: false })
+    const mentionEmails = this._extractMentionEmails($)
+
+    if (mentionEmails.length === 0) {
+      return content
+    }
+
+    const existingEmails = await this._getExistingUserEmails(mentionEmails)
+
+    $('span.mention').each((i, elm) => {
+      const mentionEmail = $(elm).attr('data-mention')
+      const mentionText = $(elm).text()
+
+      if (this._shouldAnonymizeMention(mentionEmail, mentionText, existingEmails)) {
+        $(elm).replaceWith('@AnonymousUser')
+      }
+    })
+
+    return $('body').html() || content
+  }
+
+  /**
+   * Clean plain text markdown mentions
+   * @private
+   */
+  static async _cleanMarkdownPlainTextMentions(content) {
+    const mentionRegex = /@([\w.-]+@[\w.-]+\.\w+)/g
+    const mentions = []
+    let match
+
+    while ((match = mentionRegex.exec(content)) !== null) {
+      if (!mentions.includes(match[1])) {
+        mentions.push(match[1])
+      }
+    }
+
+    if (mentions.length === 0) {
+      return content
+    }
+
+    const existingEmails = await this._getExistingUserEmails(mentions)
+    let cleanedContent = content
+
+    for (const email of mentions) {
+      if (email === 'deleted@deleted.deleted' || !existingEmails.has(email)) {
+        cleanedContent = cleanedContent.replace(new RegExp(`@${_.escapeRegExp(email)}`, 'g'), '@AnonymousUser')
+      }
+    }
+
+    return cleanedContent
+  }
+
+  /**
+   * Clean anonymized user mentions from content for editing
+   * This ensures deleted user mentions appear as @AnonymousUser in the editor
+   *
+   * @param {String} content Page content
+   * @param {String} contentType Content type (html or markdown)
+   * @returns {Promise<String>} Cleaned content
+   */
+  static async cleanAnonymizedMentionsForEditing(content, contentType) {
+    try {
+      if (contentType === 'html') {
+        return await this._cleanHtmlMentions(content)
+      }
+
+      if (contentType === 'markdown') {
+        const hasHtmlSpans = content.includes('<span') && content.includes('class="mention"')
+        return hasHtmlSpans
+          ? await this._cleanHtmlMentions(content)
+          : await this._cleanMarkdownPlainTextMentions(content)
+      }
+
+      return content
+    } catch (err) {
+      WIKI.logger.warn('Error cleaning anonymized mentions for editing:', err)
+      return content
     }
   }
 
@@ -1514,6 +1694,49 @@ module.exports = class Page extends Model {
       .filter((w) => w.length > 1)
       .join(' ')
       .toLowerCase()
+  }
+
+  /**
+   * Anonymize user mentions in page content for given pageIds
+   * @param {Array<string>} pageIds - IDs of pages where the user is mentioned
+   * @param {Function} anonymizeFn - Function to anonymize mentions in content of page
+   * @param {string} email - Email of the user to anonymize mentions for
+   */
+  static async anonymizeMentionsByPageIds(pageIds, anonymizeFn, email) {
+    const pages = await WIKI.models.pages.query()
+      .whereIn('id', pageIds)
+      .where(builder => {
+        builder
+          .where('content', 'like', `%@${email}%`)
+          .orWhere('content', 'like', `%data-mention="${email}"%`)
+      })
+    for (const page of pages) {
+      let newContent = page.content
+      if (typeof anonymizeFn === 'function') {
+        newContent = anonymizeFn(page.content, page.contentType)
+      }
+      if (newContent !== page.content) {
+        await WIKI.models.pages.query()
+          .patch({ content: newContent })
+          .where('id', page.id)
+
+        // Invalidate cache FIRST so stale render is never served
+        await WIKI.models.pages.deletePageFromCache(page.hash)
+        if (WIKI.events && WIKI.events.outbound) {
+          WIKI.events.outbound.emit('deletePageFromCache', page.hash)
+        }
+
+        // Re-render the page so the render column is also updated.
+        // Wrapped in try-catch so a single page render failure does not
+        // abort the loop or prevent the backup renderMentionedPages call.
+        try {
+          const renderPageJob = require('../jobs/render-page')
+          await renderPageJob(page.id)
+        } catch (renderErr) {
+          WIKI.logger.warn(`[anonymize] Failed to re-render page ${page.id} after anonymization (will be retried by renderMentionedPages): ${renderErr.message}`)
+        }
+      }
+    }
   }
 
   /**
