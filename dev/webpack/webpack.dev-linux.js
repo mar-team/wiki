@@ -23,8 +23,13 @@ const { bundler, styles } = require('@ckeditor/ckeditor5-dev-utils')
 
 process.noDeprecation = true
 
-fs.emptyDirSync(path.join(process.cwd(), 'assets'))
 
+;['js', 'css', 'fonts', 'img'].forEach(subDir => {
+  const dirPath = path.join(process.cwd(), 'assets', subDir)
+  if (fs.existsSync(dirPath)) {
+    fs.emptyDirSync(dirPath)
+  }
+})
 module.exports = {
   mode: 'development',
   entry: {
@@ -49,7 +54,8 @@ module.exports = {
           return (
             modulePath.includes('node_modules') &&
             !modulePath.includes('vuetify') &&
-            !modulePath.includes('graphql-ws')
+            !modulePath.includes('graphql-ws') &&
+            !modulePath.includes('mermaid')
           )
         },
         use: [
@@ -59,6 +65,20 @@ module.exports = {
               cacheDirectory: cacheDir
             }
           },
+          {
+            loader: 'babel-loader',
+            options: {
+              ...babelConfig,
+              cacheDirectory: babelDir
+            }
+          }
+        ]
+      },
+      {
+        test: /\.mjs$/,
+        include: /node_modules/,
+        type: 'javascript/auto',
+        use: [
           {
             loader: 'babel-loader',
             options: {
@@ -339,6 +359,7 @@ module.exports = {
       modernizr$: path.resolve(process.cwd(), 'client/.modernizrrc.js')
     },
     extensions: [
+      '.mjs',
       '.js',
       '.json',
       '.vue'
