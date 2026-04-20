@@ -3,7 +3,6 @@
  * Adds tables:
  *  - release_info(version_number PK, release_date, display)
  *  - release_notes(id PK, version_number FK -> release_info.version_number, notes_en, notes_de)
- * Seeds both tables with initial sample data provided for MAR-1190.
  */
 
 exports.up = async function (knex) {
