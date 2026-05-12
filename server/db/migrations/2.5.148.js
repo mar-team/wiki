@@ -10,7 +10,7 @@ const { isPostgres } = require('./_helpers')
 
 exports.up = async function (knex) {
   // Postgres only: this migration uses Postgres ICU collations and Postgres-specific ALTER COLUMN syntax.
-  // ExampleWiki is intended to run on Postgres; if other DB engines are ever used for tests/tools,
+  // Wiki.js is intended to run on Postgres; if other DB engines are ever used for tests/tools,
   // we no-op to avoid breaking migrations.
   if (!isPostgres(knex)) {
     return

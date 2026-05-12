@@ -86,7 +86,7 @@ describe('notifyUsers', () => {
       template: 'page-notify',
       to: '',
       bcc: ['user1@example.com', 'user2@example.com'],
-      subject: '[ExampleWiki] Page Updated: Test Page',
+      subject: '[Wiki.js] Page Updated: Test Page',
       data: expect.objectContaining({
         event: 'UPDATE_PAGE',
         eventText: 'updated',
@@ -144,7 +144,7 @@ describe('notifyUsers', () => {
       template: 'page-notify',
       to: '',
       bcc: users.slice(0, 10).map(f => f.email),
-      subject: `[ExampleWiki] Page Updated: ${pageTitle}`,
+      subject: `[Wiki.js] Page Updated: ${pageTitle}`,
       data: {
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
         isDeletion: false,
@@ -160,7 +160,7 @@ describe('notifyUsers', () => {
       template: 'page-notify',
       to: '',
       bcc: users.slice(10, 20).map(f => f.email),
-      subject: `[ExampleWiki] Page Updated: ${pageTitle}`,
+      subject: `[Wiki.js] Page Updated: ${pageTitle}`,
       data: {
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
         isDeletion: false,
@@ -176,7 +176,7 @@ describe('notifyUsers', () => {
       template: 'page-notify',
       to: '',
       bcc: users.slice(20, 25).map(f => f.email),
-      subject: `[ExampleWiki] Page Updated: ${pageTitle}`,
+      subject: `[Wiki.js] Page Updated: ${pageTitle}`,
       data: {
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
         isDeletion: false,
@@ -263,7 +263,7 @@ describe('notifyUsers', () => {
       template: 'page-notify',
       to: '',
       bcc: ['user1@example.com', 'user2@example.com'],
-      subject: `[ExampleWiki] Page Created: ${pageTitle}`,
+      subject: `[Wiki.js] Page Created: ${pageTitle}`,
       data: {
         preheadertext: `The page "${pageTitle}" has been ${event.toLowerCase()} by ${userEmail}.`,
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
@@ -321,7 +321,7 @@ describe('notifyUsers', () => {
       template: 'page-notify',
       to: '',
       bcc: ['user1@example.com', 'user2@example.com'],
-      subject: `[ExampleWiki] Page Deleted: ${pageTitle}`,
+      subject: `[Wiki.js] Page Deleted: ${pageTitle}`,
       data: {
         preheadertext: `The page "${pageTitle}" has been ${event.toLowerCase()} by ${userEmail}.`,
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
@@ -381,7 +381,7 @@ describe('notifyUsers', () => {
       template: 'page-notify',
       to: '',
       bcc: ['user1@alloweddomain.com', 'user2@alloweddomain.com'],
-      subject: `[ExampleWiki] Page Updated: ${pageTitle}`,
+      subject: `[Wiki.js] Page Updated: ${pageTitle}`,
       data: {
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
         isDeletion: false,
@@ -442,7 +442,7 @@ describe('notifyUsers', () => {
       template: 'page-notify',
       to: '',
       bcc: ['user1@alloweddomain1.com', 'user2@alloweddomain2.com'],
-      subject: `[ExampleWiki] Page Updated: ${pageTitle}`,
+      subject: `[Wiki.js] Page Updated: ${pageTitle}`,
       data: {
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
         isDeletion: false,
@@ -503,7 +503,7 @@ describe('notifyUsers', () => {
       template: 'page-notify',
       to: '',
       bcc: ['user1@alloweddomain1.com', 'user2@alloweddomain2.com', 'user3@notalloweddomain.com'],
-      subject: `[ExampleWiki] Page Updated: ${pageTitle}`,
+      subject: `[Wiki.js] Page Updated: ${pageTitle}`,
       data: {
         pageUrl: `${WIKI.config.host}/${sitePath}/${pagePath}`,
         isDeletion: false,

@@ -6,7 +6,7 @@ common:
   actions.saveNotify: "Save & Notify"
   actions.createNotify: "Create & Notify"
   actions.deleteNotify: "Delete & Notify"
-  release.upgradeTitle: "ExampleWiki is successfully upgraded!"
+  release.upgradeTitle: "Wiki.js is successfully upgraded!"
   release.upgradeBody: "Check out the new features and improvements below."
   page.recentActivities: "Recent Site Activities"
   page.created: "created"

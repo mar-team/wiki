@@ -49,7 +49,7 @@ exports.up = async function (knex) {
         { version_number: 'v1.7.0', notes_en: 'New feature: send welcome email to newly added users via script', notes_de: 'n/a' },
         // v1.6.0
         { version_number: 'v1.6.0', notes_en: 'Anonymization Former mentioned employees in page history', notes_de: 'n/a' },
-        { version_number: 'v1.6.0', notes_en: 'Added link in ExampleWiki to access ExampleWiki public repository in GitHub', notes_de: 'n/a' },
+        { version_number: 'v1.6.0', notes_en: 'Added link in Wiki.js to access Wiki.js public repository in GitHub', notes_de: 'n/a' },
         { version_number: 'v1.6.0', notes_en: 'Performance optimization for create/edit page operations', notes_de: 'n/a' },
         { version_number: 'v1.6.0', notes_en: 'Enhanced feature: Users can now edit/delete their own comments only', notes_de: 'n/a' },
         { version_number: 'v1.6.0', notes_en: 'New feature: send welcome email to newly added users via UI', notes_de: 'n/a' }
