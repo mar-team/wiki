@@ -1,10 +1,13 @@
 <template lang="pug">
-  v-app(v-scroll='upBtnScroll', :dark='$vuetify.theme.dark', :class='$vuetify.rtl ? `is-rtl` : `is-ltr`')
+  v-app.page-bg(v-scroll='upBtnScroll', :dark='$vuetify.theme.dark', :class='$vuetify.rtl ? `is-rtl` : `is-ltr`')
     nav-header
     v-navigation-drawer(
       v-if='navMode !== `NONE`'
-      :color='$vuetify.theme.dark ? colors.primary[4] : colors.surface[2]'
-      dark
+      :color='$vuetify.theme.dark ? colors.surfaceDark.black : colors.surfaceLight.white'
+      :style='"border-right: 1px solid " + ($vuetify.theme.dark ? colors.borderDark.primary : colors.borderLight.primary)'
+      :width='sidebarWidth'
+      :class='{ resizing: isResizing }'
+      :dark='$vuetify.theme.dark'
       app
       clipped
       mobile-breakpoint='600'
@@ -12,20 +15,27 @@
       v-model='navShown'
       :right='$vuetify.rtl'
       )
+      //- Resize handle
+      .sidebar-resize-handle(
+        v-if='!$vuetify.breakpoint.smAndDown'
+        :class='$vuetify.rtl ? "resize-handle-left" : "resize-handle-right"'
+        @mousedown='startResize'
+        @dblclick='resetSidebarWidth'
+      )
+
       //- scrollbar colors are set in 'scrollStyle'
-      vue-scroll(:ops='scrollStyle')
+      vue-scroll.sidebar-scroll-container(:ops='scrollStyle')
         nav-sidebar(
-          :color='$vuetify.theme.dark ? colors.primary[4] : colors.surface[1]'
+          :color='$vuetify.theme.dark ? colors.surfaceDark.primaryBlueLite : colors.neutral[50]'
           :items='sidebarDecoded'
           :nav-mode='navMode'
           :dark ='$vuetify.theme.dark'
           )
-
     //- Menu button for mobile view
     v-fab-transition(v-if='navMode !== `NONE`')
       v-btn(
         fab
-        :color='$vuetify.theme.dark ? colors.teal[1]: colors.primary[2]'
+        :color='$vuetify.theme.dark ? colors.actionDark.focusOnLite : colors.actionLight.focusOnLite'
         fixed
         bottom
         :right='$vuetify.rtl'
@@ -35,20 +45,18 @@
         v-if='$vuetify.breakpoint.mdAndDown'
         v-show='!navShown'
         )
-        v-icon(color='white') mdi-menu
+        v-icon(:color='$vuetify.theme.dark ? colors.actionLight.primaryDefaultOnLite : colors.actionLight.primaryDefaultOnHeavy') mdi-menu
 
     v-main(ref='content')
+      notification-banner
       template(v-if='path !== `home`')
         //- breadcrumbs toolbar
         v-toolbar(
           v-if='$vuetify.breakpoint.smAndUp'
           dense
           flat
-          :color='$vuetify.theme.dark ? colors.primary[4] : colors.surface[2]'
+          :color='$vuetify.theme.dark ? colors.surfaceDark.black : colors.surfaceLight.white'
           )
-          //- v-btn.pl-0(v-if='$vuetify.breakpoint.xsOnly', flat, @click='toggleNavigation')
-          //-   v-icon(color='grey darken-2', left) menu
-          //-   span Navigation
           v-breadcrumbs.breadcrumbs-nav.pl-0(
             :items='breadcrumbs'
             divider='/'
@@ -58,36 +66,108 @@
                 v-if='props.item.path === "/"',
                 small,
                 @click='goHome',
-                :color='$vuetify.theme.dark ? `white` : colors.primary[1]') mdi-home
-              v-btn.ma-0(v-else, :href='props.item.path', small, text) {{props.item.name}}
+                :color='$vuetify.theme.dark ? colors.surfaceDark.tertiaryBlueLite : colors.actionLight.active') mdi-home
+              v-btn.ma-0.text-none(
+                v-else
+                :href='props.item.path'
+                small
+                text
+                rounded
+                ) {{props.item.name}}
           template(v-if='!isPublished')
             v-spacer
             .caption.red--text {{$t('common:page.unpublished')}}
             status-indicator.ml-3(negative, pulse)
         v-divider
-      v-container.grey.pa-0(fluid, :class='$vuetify.theme.dark ? `darken-4-l3` : `lighten-4`')
-        v-row.page-header-section(no-gutters, align-content='center', style='height: 90px;')
-          v-col.page-col-content.is-page-header(
-            :offset-xl='tocPosition === `left` ? 2 : 0'
-            :offset-lg='tocPosition === `left` ? 3 : 0'
-            :xl='tocPosition === `right` ? 10 : false'
-            :lg='tocPosition === `right` ? 9 : false'
+
+      //- Page header
+      v-container.pa-0.page-header-container(ref='pageHeaderSection', fluid, :class='$vuetify.theme.dark ? `dark-theme` : ``')
+        v-row.page-header-section(no-gutters, align-content='center')
+          v-col.is-page-header(
+            cols='12'
             style='margin-top: auto; margin-bottom: auto;'
             :class='$vuetify.rtl ? `pr-4` : `pl-4`'
             )
             .page-header-headings
-              .headline.grey--text(:class='$vuetify.theme.dark ? `text--lighten-2` : `text--darken-3`') {{title}}
-              .caption.grey--text.text--darken-1 {{description}}
-              v-btn.mr-5.white--text(
-                v-if='isAuthenticated && isFollower != null && !isFollower'
-                @click='followPage'
-                :color='$vuetify.theme.dark ? colors.peacock[4] : colors.primary[1]'
-                ) Follow
-              v-btn.mr-5.white--text(
-                v-if='isAuthenticated && isFollower != null && isFollower'
-                @click='unfollowPage'
-                :color='$vuetify.theme.dark ? colors.peacock[4] : colors.primary[1]'
-                ) Unfollow
+              .page-header-info
+                .headline {{title}}
+                .caption.grey--text.text--darken-1 {{description}}
+                .page-header-meta.d-flex.align-center.flex-wrap.mt-1
+                  v-icon.mr-1(small, :color='$vuetify.theme.dark ? colors.neutral[400] : colors.neutral[500]') mdi-account-edit-outline
+                  span.page-header-meta-author {{ authorName }}
+                  span.page-header-meta-sep ·
+                  v-tooltip(bottom)
+                    template(v-slot:activator='{ on }')
+                      span.page-header-meta-date.d-inline-flex.align-center(v-on='on')
+                        v-icon.mr-1(small, :color='$vuetify.theme.dark ? colors.neutral[400] : colors.neutral[500]') mdi-clock-outline
+                        | {{ updatedAt | moment('from') }}
+                    span {{ updatedAt | moment('LLL') }}
+                  v-tooltip(bottom, v-if='isAuthenticated && hasReadHistoryPermission')
+                    template(v-slot:activator='{ on }')
+                      v-btn.page-header-meta-history.ml-1(icon, small, v-on='on', :href='"/h/" + sitePath + "/" + locale + "/" + path')
+                        v-icon(small, :color='tileBtnColor') mdi-history
+                    span {{$t('common:header.history')}}
+                  span.page-header-meta-sep ·
+                  v-tooltip(bottom)
+                    template(v-slot:activator='{ on }')
+                      v-btn.page-header-meta-action(icon, small, v-on='on', @click='print')
+                        v-icon(small, :color='$vuetify.theme.dark ? colors.neutral[400] : colors.neutral[600]') mdi-printer
+                    span {{messages.printPage}}
+                  v-tooltip(bottom)
+                    template(v-slot:activator='{ on }')
+                      v-btn.page-header-meta-action(icon, small, v-on='on', @click='exportWord')
+                        v-icon(small, :color='$vuetify.theme.dark ? colors.neutral[400] : colors.neutral[600]') mdi-file-word-box
+                    span {{messages.exportToWord}}
+                  v-tooltip(bottom)
+                    template(v-slot:activator='{ on }')
+                      v-btn.page-header-meta-action(icon, small, v-on='on', @click='exportPdf')
+                        v-icon(small, :color='$vuetify.theme.dark ? colors.neutral[400] : colors.neutral[600]') mdi-file-pdf-box
+                    span {{messages.exportToPdf}}
+                .page-header-tags.mt-1(v-if='tags.length > 0')
+                  v-chip.hover-chip.mr-1(
+                    outlined
+                    x-small
+                    :color='tileBtnColor'
+                    :class='$vuetify.theme.dark ? `dark` : ``'
+                    v-for='(tag, idx) in tags'
+                    :href='`/t/` + sitePath + `/` + tag.tag'
+                    :key='`tag-` + tag.tag'
+                    )
+                    v-icon(left, x-small, :color='tileBtnColor') mdi-tag
+                    span.tag-title(:class='$vuetify.theme.dark ? `dark` : ``') {{tag.title}}
+              .d-flex.align-center.mr-4
+                v-btn.mr-2.text-none.page-toc-toggle(
+                  v-if='tocDecoded.length'
+                  rounded
+                  @click='toggleSections'
+                  :color='showToc ? tileBtnColor : ($vuetify.theme.dark ? colors.neutral[400] : colors.neutral[500])'
+                  :outlined='showToc'
+                  :text='!showToc'
+                  )
+                  v-icon.mr-1 mdi-table-of-contents
+                  | Page Contents
+                v-btn.mr-2.text-none(
+                  text
+                  rounded
+                  @click='goToComments()'
+                  :color='$vuetify.theme.dark ? colors.neutral[400] : colors.neutral[500]'
+                  )
+                  v-icon.mr-1 mdi-comment-text-outline
+                  template(v-if='commentsCount > 0') &nbsp;{{ commentsCount }}
+                v-btn.mr-2.hover-btn.text-primary.text-none(
+                  v-if='isAuthenticated && isFollower != null && !isFollower'
+                  @click='followPage'
+                  :color='colors.actionLight.highlightOnLite'
+                  rounded
+                  data-tour='follow-page'
+                  ) Follow
+                v-btn.mr-2.hover-btn.text-primary.text-none(
+                  v-if='isAuthenticated && isFollower != null && isFollower'
+                  @click='unfollowPage'
+                  :color='colors.actionLight.highlightOnLite'
+                  rounded
+                  data-tour='unfollow-page'
+                  ) Unfollow
             .page-edit-shortcuts(
               v-if='editShortcutsObj.editMenuBar'
               :class='tocPosition === `right` ? `is-right` : ``'
@@ -110,148 +190,14 @@
                 v-icon.mr-2(small) {{ editShortcutsObj.editMenuExternalIcon }}
                 span.text-none {{$t(`common:page.editExternal`, { name: editShortcutsObj.editMenuExternalName })}}
       v-divider
-      v-container.pl-5.pt-4(fluid, grid-list-xl)
+      v-container.pl-5.pt-4.page-bg(
+        fluid,
+        grid-list-xl
+        :class='$vuetify.theme.dark ? `theme--dark` : ``'
+        )
         v-layout(row)
-          v-flex.page-col-sd(
-            v-if='tocPosition !== `off` && $vuetify.breakpoint.lgAndUp'
-            :order-xs1='tocPosition !== `right`'
-            :order-xs2='tocPosition === `right`'
-            lg3
-            xl2
-            )
-            v-card.page-toc-card.mb-5(
-              v-if='tocDecoded.length'
-              :color='$vuetify.theme.dark ? colors.primary[4] : colors.surface[1]'
-              )
-              .overline.pa-5.pb-0.card-title(
-                :class='$vuetify.theme.dark ? `dark` : ``'
-                ) {{$t('common:page.toc')}}
-              v-list.d-flex.flex-column.mb-0.pb-3.pl-1.pr-1(
-                dense
-                nav
-                :color='$vuetify.theme.dark ? colors.primary[4] : colors.surface[1]'
-                )
-                TreeItem(
-                  v-for='(tocItem, tocIdx) in tocDecoded'
-                  :key='tocIdx'
-                  :item='tocItem'
-                  :open.sync='openStates[tocItem.id]'
-                  :toggleOpenState='toggleOpenState'
-                  :openStates='openStates'
-                  :level='0' :uniqueId='tocItem.id'
-                  :color='$vuetify.theme.dark ? colors.primary[4] : colors.surface[1]'
-                  )
-
-            v-card.page-tags-card.mb-5(
-              v-if='tags.length > 0'
-              :color='$vuetify.theme.dark ? colors.primary[4] : colors.surface[1]'
-              )
-              .pa-5
-                .overline.pb-2.card-title(:class='$vuetify.theme.dark ? `dark` : ``') {{$t('common:page.tags')}}
-                v-chip.mr-1.mb-1(
-                  label
-                  :color='$vuetify.theme.dark ? colors.sapphire[3] : colors.sapphire[1]'
-                  v-for='(tag, idx) in tags'
-                  :href='`/t/` + sitePath + `/` + tag.tag'
-                  :key='`tag-` + tag.tag'
-                  )
-                  v-icon(:color='$vuetify.theme.dark ? colors.peacock[1] : colors.green[1]', left, small) mdi-tag
-                  span(class='white--text') {{tag.title}}
-                v-chip.mr-1.mb-1(
-                  label
-                  :color='$vuetify.theme.dark ? colors.sapphire[3] : colors.sapphire[1]'
-                  :href='`/t/` + sitePath + `/` + tags.map(t => t.tag).join(`/`)'
-                  :aria-label='$t(`common:page.tagsMatching`)'
-                  )
-                  v-icon(:color='$vuetify.theme.dark ? colors.peacock[1] : colors.green[1]', size='20') mdi-tag-multiple
-
-            v-card.page-comments-card.mb-5(
-              v-if='commentsEnabled && commentsPerms.read'
-              :color='$vuetify.theme.dark ? colors.primary[4] : colors.surface[1]'
-              )
-              .pa-5
-                .overline.pb-2.d-flex.align-center
-                  span.card-title(
-                    :class='$vuetify.theme.dark ? `dark` : ``'
-                    ) {{$t('common:comments.sdTitle')}}
-                .d-flex
-                  v-btn.text-none(
-                    @click='goToComments()'
-                    :color='$vuetify.theme.dark ? colors.peacock[3] : `blue-grey darken-2`'
-                    outlined
-                    style='flex: 1 1 100%;'
-                    small
-                    )
-                    span#view-discussion(
-                      :class='$vuetify.theme.dark ? `dark` : ``'
-                      ) {{$t('common:comments.viewDiscussion')}}
-                  v-tooltip(right, v-if='commentsPerms.write')
-                    template(v-slot:activator='{ on }')
-                      v-btn.ml-2(
-                        @click='goToComments(true)'
-                        v-on='on'
-                        outlined
-                        small
-                        :color='$vuetify.theme.dark ? colors.peacock[3] : `blue-grey darken-2`'
-                        :aria-label='$t(`common:comments.newComment`)'
-                        )
-                        v-icon(:color='$vuetify.theme.dark ? colors.peacock[2] : `blue-grey darken-2`', dense) mdi-comment-plus
-                    span {{$t('common:comments.newComment')}}
-
-            v-card.page-author-card.mb-5(:color='$vuetify.theme.dark ? colors.primary[4] : colors.surface[1]')
-              .pa-5
-                .overline.d-flex
-                  span.card-title(
-                    :class='$vuetify.theme.dark ? `dark` : ``'
-                    ) {{$t('common:page.lastEditedBy')}}
-                  v-spacer
-                  v-tooltip(right, v-if='isAuthenticated')
-                    template(v-slot:activator='{ on }')
-                      v-btn.btn-animate-edit(
-                        icon
-                        :href='"/h/" + sitePath + "/" + locale + "/" + path'
-                        v-on='on'
-                        x-small
-                        v-if='hasReadHistoryPermission'
-                        :aria-label='$t(`common:header.history`)'
-                        )
-                        v-icon(:color='$vuetify.theme.dark ? colors.teal[1] : colors.sapphire[3]', dense) mdi-history
-                    span {{$t('common:header.history')}}
-                .page-author-card-name.body-2.grey--text(:class='$vuetify.theme.dark ? `` : `text--darken-3`') {{ authorName }}
-                .page-author-card-date.caption.grey--text.text--darken-1 {{ updatedAt | moment('calendar') }}
-
-            v-card.page-shortcuts-card(flat)
-              v-toolbar(:color='$vuetify.theme.dark ? colors.primary[4] : colors.surface[1]', flat, dense)
-                v-spacer
-                //- v-tooltip(bottom)
-                //-   template(v-slot:activator='{ on }')
-                //-     v-btn(icon, tile, v-on='on', :aria-label='$t(`common:page.bookmark`)'): v-icon(color='grey') mdi-bookmark
-                //-   span {{$t('common:page.bookmark')}}
-                v-tooltip(bottom)
-                  template(v-slot:activator='{ on }')
-                    v-btn.hover-icon(icon, tile, v-on='on', @click='print', :aria-label='$t(`common:page.printFormat`)')
-                      v-icon(color='grey') mdi-printer
-                  span {{messages.printToPdf}}
-                v-tooltip(bottom)
-                  template(v-slot:activator='{ on }')
-                    v-btn.hover-icon(icon, tile, v-on='on', @click='exportWord', :aria-label='$t(`common:page.exportWord`)')
-                      v-icon(color='grey') mdi-file-word-box
-                  span {{messages.exportToWord}}
-                v-tooltip(bottom)
-                  template(v-slot:activator='{ on }')
-                    v-btn.hover-icon(icon, tile, v-on='on', @click='exportPdf', :aria-label='$t(`common:page.exportPdf`)')
-                      v-icon(color='grey') mdi-file-pdf-box
-                  span {{messages.exportToPdf}}
-                v-spacer
-
-          //- Edit Page & Page Actions (floating button)
-          v-flex.page-col-content(
-            xs12
-            :lg9='tocPosition !== `off`'
-            :xl10='tocPosition !== `off`'
-            :order-xs1='tocPosition === `right`'
-            :order-xs2='tocPosition !== `right`'
-            )
+          //- Page Content (full width)
+          v-flex.page-col-content(xs12)
             v-tooltip(:right='$vuetify.rtl', :left='!$vuetify.rtl', v-if='hasAnyPagePermissions && editShortcutsObj.editFab')
               template(v-slot:activator='{ on: onEditActivator }')
                 v-speed-dial(
@@ -268,7 +214,7 @@
                   template(v-slot:activator)
                     v-btn.btn-animate-edit(
                       fab
-                      :color='$vuetify.theme.dark ? colors.peacock[4] : colors.primary[1]'
+                      :color='actionBtnColor'
                       v-model='pageEditFab'
                       @click='pageEdit'
                       v-on='onEditActivator'
@@ -278,107 +224,170 @@
                       v-icon(color='white') mdi-pencil
                   v-tooltip(:right='$vuetify.rtl', :left='!$vuetify.rtl', v-if='hasReadHistoryPermission')
                     template(v-slot:activator='{ on }')
-                      v-btn(
+                      v-btn.border-btn.hover-btn(
                         fab
                         small
-                        :color='$vuetify.theme.dark ? colors.text.darkPurple : `white`'
-                        light
+                        :color='pageActionBgColor'
+                        :class='$vuetify.theme.dark ? `dark` : ``'
                         v-on='on'
                         @click='pageHistory'
                         )
                         v-icon(
                           size='20'
-                          :color='$vuetify.theme.dark ? colors.teal[1] : colors.teal[4]'
+                          :color='pageActionIconColor'
                           ) mdi-history
                     span {{$t('common:header.history')}}
                   v-tooltip(:right='$vuetify.rtl', :left='!$vuetify.rtl', v-if='hasReadSourcePermission')
                     template(v-slot:activator='{ on }')
-                      v-btn(
+                      v-btn.border-btn.hover-btn(
                         fab
                         small
-                        :color='$vuetify.theme.dark ? colors.text.darkPurple : `white`'
-                        light
+                        :color='pageActionBgColor'
+                        :class='$vuetify.theme.dark ? `dark` : ``'
                         v-on='on'
                         @click='pageSource'
                         )
                         v-icon(
                           size='20'
-                          :color='$vuetify.theme.dark ? colors.teal[1] : colors.teal[4]'
+                          :color='pageActionIconColor'
                           ) mdi-code-tags
                     span {{$t('common:header.viewSource')}}
                   v-tooltip(:right='$vuetify.rtl', :left='!$vuetify.rtl', v-if='hasWritePagesPermission')
                     template(v-slot:activator='{ on }')
-                      v-btn(
+                      v-btn.border-btn.hover-btn(
                         fab
                         small
-                        :color='$vuetify.theme.dark ? colors.text.darkPurple : `white`'
-                        light
+                        :color='pageActionBgColor'
+                        :class='$vuetify.theme.dark ? `dark` : ``'
                         v-on='on'
                         @click='pageConvert'
                         )
                         v-icon(
                           size='20'
-                          :color='$vuetify.theme.dark ? colors.teal[1] : colors.teal[4]'
+                          :color='pageActionIconColor'
                           ) mdi-lightning-bolt
                     span {{$t('common:header.convert')}}
                   v-tooltip(:right='$vuetify.rtl', :left='!$vuetify.rtl', v-if='hasWritePagesPermission')
                     template(v-slot:activator='{ on }')
-                      v-btn(
+                      v-btn.border-btn.hover-btn(
                         fab
                         small
-                        :color='$vuetify.theme.dark ? colors.text.darkPurple : `white`'
-                        light
+                        :color='pageActionBgColor'
+                        :class='$vuetify.theme.dark ? `dark` : ``'
                         v-on='on'
                         @click='pageDuplicate'
                         )
                         v-icon(
                           size='20'
-                          :color='$vuetify.theme.dark ? colors.teal[1] : colors.teal[4]'
+                          :color='pageActionIconColor'
                           ) mdi-content-duplicate
                     span {{$t('common:header.duplicate')}}
                   v-tooltip(:right='$vuetify.rtl', :left='!$vuetify.rtl', v-if='hasManagePagesPermission')
                     template(v-slot:activator='{ on }')
-                      v-btn(
+                      v-btn.border-btn.hover-btn(
                         fab
                         small
-                        :color='$vuetify.theme.dark ? colors.text.darkPurple : `white`'
-                        light
+                        :color='pageActionBgColor'
+                        :class='$vuetify.theme.dark ? `dark` : ``'
                         v-on='on'
                         @click='pageMove'
                         )
                         v-icon(
                           size='20'
-                          :color='$vuetify.theme.dark ? colors.teal[1] : colors.teal[4]'
+                          :color='pageActionIconColor'
                           ) mdi-content-save-move-outline
                     span {{$t('common:header.move')}}
+                  v-tooltip(:right='$vuetify.rtl', :left='!$vuetify.rtl')
+                    template(v-slot:activator='{ on }')
+                      v-btn.border-btn.hover-btn(
+                        fab
+                        small
+                        :color='pageActionBgColor'
+                        :class='$vuetify.theme.dark ? `dark` : ``'
+                        v-on='on'
+                        @click='pageShare'
+                        )
+                        v-icon(
+                          size='20'
+                          :color='pageActionIconColor'
+                          ) mdi-share-variant-outline
+                    span {{messages.sharePage}}
                   v-tooltip(:right='$vuetify.rtl', :left='!$vuetify.rtl', v-if='hasDeletePagesPermission')
                     template(v-slot:activator='{ on }')
-                      v-btn(
+                      v-btn.border-btn.hover-btn.delete-btn(
                         fab
-                        dark
+                        :class='$vuetify.theme.dark ? `dark` : ``'
                         small
-                        :color='$vuetify.theme.dark ? colors.text.darkPurple : `white`'
+                        :color='pageActionBgColor'
                         v-on='on'
                         @click='pageDelete'
                         )
                         v-icon(
                           size='20'
-                          :color='colors.red[5]'
+                          :color='$vuetify.theme.dark ? colors.warningActionDark.secondaryDefault : colors.warningActionLight.secondaryDefault'
                           ) mdi-trash-can-outline
                     span {{$t('common:header.delete')}}
               span {{$t('common:page.editPage')}}
-            v-alert.mb-5(v-if='!isPublished', color='red', outlined, icon='mdi-minus-circle', dense)
+            v-alert.mb-5(
+              v-if='!isPublished',
+              :color='$vuetify.theme.dark ? colors.warningActionDark.secondaryDefault : colors.warningActionLight.secondaryDefault',
+              outlined,
+              icon='mdi-minus-circle',
+              dense
+              )
               .caption {{$t('common:page.unpublishedWarning')}}
-            .contents(ref='container')
-              slot(name='contents')
+            .contents(ref='container', data-tour='page-content')
+                slot(name='contents')
+                // Recent Site Activities
+                div(v-if='recentActivitiesDecoded', style='margin-top: 2rem; padding-top: 2rem;')
+                  h2(style='font-size: 1.5rem; margin-bottom: 1rem;'): strong {{$t('common:page.recentActivities')}}
+                  ul(style='margin-left: 1.5rem; font-size: 1rem;')
+                    li(v-for='page in recentActivitiesDecoded.pages', :key='page.id', style='margin-bottom: 0.75rem; line-height: 1.6;')
+                      a(:href='buildPageUrl(page)') {{ page.title }}
+                      span.body-2(:class='$vuetify.theme.dark ? `white--text` : `grey--text text--darken-3`')
+                        template(v-if='isPageNewlyCreated(page)')
+                          | &nbsp;- {{$t('common:page.created')}} {{ page.createdAt | moment('calendar') }} {{$t('common:page.by')}}
+                        template(v-else)
+                          | &nbsp;- {{$t('common:page.updated')}} {{ page.updatedAt | moment('calendar') }} {{$t('common:page.by')}}
+                        span.cw-mention-details &nbsp;{{ page.authorName }}
+                    li(v-if='showMoreActivitiesBtn', style='list-style: none; margin-top: 1rem;')
+                      a(@click='loadMoreActivities', style='cursor: pointer; font-weight: 500; text-decoration: none;', href='#') {{ loadingMoreActivities ? $t('common:page.loading') : $t('common:page.loadMore') }}
+                // Image overlay viewer
+                div.image-overlay(v-if='isImageOverlayVisible' role='dialog' aria-modal='true' @click.self='closeImageOverlay')
+                  span.image-overlay-name {{ imageOverlayName }}
+                  button.image-overlay-close(@click='closeImageOverlay' aria-label='Close image')
+                    v-icon(color='black') mdi-close
+                  img.image-overlay-img(:src='imageOverlaySrc' :alt='imageOverlayName')
+
+            //- Floating sticky Table of Contents
+            nav.floating-toc(
+              v-if='showToc && tocDecoded.length && $vuetify.breakpoint.mdAndUp'
+              :style='{ top: tocTop + "px" }'
+              :class='[$vuetify.theme.dark ? `theme--dark` : ``, tocCollapsed ? `is-collapsed` : ``]'
+              )
+              .floating-toc-label
+                .floating-toc-label-left(@click='toggleSections')
+                  v-icon.mr-1(x-small, :color='$vuetify.theme.dark ? colors.neutral[500] : colors.neutral[400]') mdi-table-of-contents
+                  span PAGE CONTENTS
+                  v-icon.ml-1(x-small, :color='$vuetify.theme.dark ? colors.neutral[500] : colors.neutral[400]') {{ tocCollapsed ? 'mdi-chevron-down' : 'mdi-chevron-up' }}
+                v-spacer
+                v-icon.floating-toc-close(x-small, @click='closeSections', :color='$vuetify.theme.dark ? colors.neutral[500] : colors.neutral[400]') mdi-close
+              .floating-toc-items(:class='{ collapsed: tocCollapsed }')
+                template(v-for='item in tocFlat')
+                  a.floating-toc-link(
+                    :key='item.anchor'
+                    :href='item.anchor'
+                    :class='{ active: activeTocAnchor === item.anchor, [`depth-${item.depth}`]: true }'
+                    @click.prevent='scrollToAnchor(item.anchor)'
+                    ) {{ item.title }}
             .comments-container#discussion(v-if='commentsEnabled && commentsPerms.read')
               .comments-header
-                v-icon.mr-2(dark) mdi-comment-text-outline
+                v-icon.mr-2(dark, :color='$vuetify.theme.dark ? colors.surfaceLight.primaryNeutralLite :colors.surfaceLight.inverse') mdi-comment-text-outline
                 span {{$t('common:comments.title')}}
               .comments-main
                 slot(name='comments')
     loader(v-model='isLoading', :title='messages.exporting')
-    nav-footer
+    nav-footer(:is-home='path === "home"')
     notify
     search-results
     v-fab-transition
@@ -392,21 +401,22 @@
         small
         :depressed='this.$vuetify.breakpoint.mdAndUp'
         @click='$vuetify.goTo(0, scrollOpts)'
-        :color='$vuetify.theme.dark ? colors.peacock[4] : colors.primary[1]'
+        :color='actionBtnColor'
         dark
         :style='upBtnPosition'
         :aria-label='$t(`common:actions.returnToTop`)'
         )
         v-icon mdi-arrow-up
+    //- Export to File Modal
     v-dialog(
       v-model='isExportModalVisible'
       max-width='750'
       persistent
-      overlay-color='blue darken-4'
+      overlay-color='black'
       overlay-opacity='.7'
     )
       v-card
-        .dialog-header.is-short.is-blue
+        .dialog-header.is-short(:style='`background-color: ${colors.blue[500]} !important;`')
           v-icon.mr-2(
             v-if='exportFileType === `docx`'
             color='white'
@@ -415,34 +425,46 @@
             v-else-if='exportFileType === `pdf`'
             color='white'
             ) mdi-file-pdf-box
-          span(v-if='exportFileType === `docx`') {{ messages.exportToWord }}
-          span(v-else-if='exportFileType === `pdf`') {{ messages.exportToPdf }}
+          span(v-if='exportFileType === `docx`', style='color: white;') {{ messages.exportToWord }}
+          span(v-else-if='exportFileType === `pdf`', style='color: white;') {{ messages.exportToPdf }}
         v-card-text.pt-5
-          span {{ messages.exportModalSubtitle }}
-        v-card-chin
+          span(:style='`color: ${$vuetify.theme.dark ? colors.textDark.primary : colors.textLight.primary};`') {{ messages.exportModalSubtitle }}
+        v-card-chin(
+          :class='$vuetify.theme.dark ? `theme--dark` : ``'
+          )
           v-spacer
-          v-btn(
-            text
+          v-btn.btn-rounded(
+            outlined
+            rounded
+            :color='$vuetify.theme.dark ? colors.surfaceDark.inverse : colors.surfaceLight.primarySapHeavy'
             @click='isExportModalVisible = false'
             ) {{ messages.cancel }}
-          v-btn.px-4(
+          v-btn.px-4.btn-rounded(
             v-if='exportFileType === `docx`'
-            color='primary'
+            rounded
+            dark
+            :color='primaryActionBtnColor'
             @click='exportSinglePageToWord()'
             ) {{ messages.exportSinglePage }}
-          v-btn.px-4(
+          v-btn.px-4.btn-rounded(
             v-else-if='exportFileType === `pdf`'
-            color='primary'
+            rounded
+            dark
+            :color='primaryActionBtnColor'
             @click='exportSinglePageToPdf()'
             ) {{ messages.exportSinglePage }}
-          v-btn.px-4(
+          v-btn.px-4.btn-rounded(
             v-if='exportFileType === `docx`'
-            color='primary'
+            rounded
+            dark
+            :color='primaryActionBtnColor'
             @click='exportPageTreeToWord()'
             ) {{ messages.exportPageTree }}
-          v-btn.px-4(
+          v-btn.px-4.btn-rounded(
             v-else-if='exportFileType === `pdf`'
-            color='primary'
+            rounded
+            dark
+            :color='primaryActionBtnColor'
             @click='exportPageTreeToPdf()'
             ) {{ messages.exportPageTree }}
 </template>
@@ -451,6 +473,7 @@
 import { StatusIndicator } from 'vue-status-indicator'
 import Tabset from './tabset.vue'
 import NavSidebar from './nav-sidebar.vue'
+import NotificationBanner from './notification-banner.vue'
 import Prism from 'prismjs'
 import mermaid from 'mermaid'
 import { get } from 'vuex-pathify'
@@ -463,7 +486,7 @@ import { messages } from '@/messages'
 import createFollowerMutation from 'gql/followers/create-follower.gql'
 import deleteFollowerMutation from 'gql/followers/delete-follower.gql'
 import isFollowingResponse from 'gql/followers/is-following.gql'
-import colors from '@/themes/default/js/extended-color-scheme'
+import colors from '@/themes/default/js/color-scheme'
 
 Vue.component('Tabset', Tabset)
 
@@ -505,6 +528,7 @@ Prism.plugins.toolbar.registerButton('copy-to-clipboard', (env) => {
 export default {
   components: {
     NavSidebar,
+    NotificationBanner,
     StatusIndicator,
     TreeItem
   },
@@ -600,6 +624,10 @@ export default {
     sitePath: {
       type: String,
       default: ''
+    },
+    recentActivities: {
+      type: String,
+      default: null
     }
   },
   data() {
@@ -610,7 +638,16 @@ export default {
       navExpanded: false,
       upBtnShown: false,
       pageEditFab: false,
+      sidebarWidth: 300,
+      sidebarMinWidth: 200,
+      sidebarMaxWidth: 600,
+      isResizing: false,
+      resizeStartX: 0,
+      resizeStartWidth: 0,
+
       isFollowing: null,
+      loadingMoreActivities: false,
+      hasMorePages: true,
       scrollOpts: {
         duration: 1500,
         offset: 0,
@@ -620,7 +657,8 @@ export default {
         vuescroll: {},
         scrollPanel: {
           initialScrollX: 0.01, // fix scrollbar not disappearing on load
-          scrollingX: false,
+          scrollingX: true,
+          scrollingY: true,
           speed: 50
         },
         rail: {
@@ -628,7 +666,7 @@ export default {
         },
         bar: {
           onlyShowBarOnScroll: false,
-          background: colors.surface[3],
+          background: colors.neutral[200],
           hoverStyle: {
             background: '#64B5F6' // where/when is this used?
           }
@@ -640,7 +678,18 @@ export default {
       isExportModalVisible: false,
       wordDocumentType: 'docx',
       pdfDocumentType: 'pdf',
-      exportFileType: ''
+      exportFileType: '',
+      activeTocAnchor: '',
+      tocObserver: null,
+      showToc: true,
+      tocCollapsed: false,
+      tocTop: 220,
+      // Image overlay viewer state
+      isImageOverlayVisible: false,
+      imageOverlaySrc: '',
+      imageOverlayName: '',
+      imageClassObserver: null,
+      imageClassTimers: []
     }
   },
   computed: {
@@ -659,6 +708,7 @@ export default {
     isFollower() {
       return this.isFollowing
     },
+
     breadcrumbs() {
       return [{ path: '/', name: 'Home' }].concat(_.reduce(this.path.split('/'), (result, value, key) => {
         result.push({
@@ -692,7 +742,35 @@ export default {
       addUniqueId(toc)
       return toc
     },
+    recentActivitiesDecoded () {
+      if (!this.recentActivities || this.recentActivities === '') return null
+      try {
+        return JSON.parse(Buffer.from(this.recentActivities, 'base64').toString())
+      } catch (e) {
+        console.error('Failed to decode recent activities:', e)
+        return null
+      }
+    },
+    showMoreActivitiesBtn () {
+      // Only show "More..." button if we have a multiple of 5 pages and more pages are available
+      return this.recentActivitiesDecoded?.pages?.length > 0 &&
+             this.recentActivitiesDecoded.pages.length % 5 === 0 &&
+             this.hasMorePages
+    },
     tocPosition: get('site/tocPosition'),
+    tocFlat () {
+      const flat = []
+      const walk = (items, depth) => {
+        items.forEach(item => {
+          flat.push({ title: item.title, anchor: item.anchor, depth: Math.min(depth, 3) })
+          if (item.children && item.children.length > 0) {
+            walk(item.children, depth + 1)
+          }
+        })
+      }
+      walk(this.tocDecoded, 0)
+      return flat
+    },
     hasSuperAdminPermission: get('page/effectivePermissions@system.manage'),
     hasSiteAdminPermission: get('page/effectivePermissions@sites.manage'),
     hasWritePagesPermission: get('page/effectivePermissions@pages.write'),
@@ -710,6 +788,36 @@ export default {
       } else {
         return ''
       }
+    },
+    tileColor() {
+      return this.$vuetify.theme.dark ?
+        this.colors.neutral[850] :
+        this.colors.surfaceLight.white
+    },
+    tileBtnColor() {
+      return this.$vuetify.theme.dark ?
+        this.colors.actionDark.highlightOnLite :
+        this.colors.actionLight.active
+    },
+    pageActionBgColor() {
+      return this.$vuetify.theme.dark ?
+        this.colors.surfaceDark.primaryNeutralLite :
+        this.colors.surfaceLight.secondaryNeutralLite
+    },
+    pageActionIconColor() {
+      return this.$vuetify.theme.dark ?
+        this.colors.teal[500] :
+        this.colors.teal[800]
+    },
+    actionBtnColor () {
+      return this.$vuetify.theme.dark ?
+        this.colors.surfaceDark.secondarySapHeavy :
+        this.colors.surfaceLight.secondaryBlueHeavy
+    },
+    primaryActionBtnColor () {
+      return this.$vuetify.theme.dark ?
+        this.colors.surfaceDark.secondarySapHeavy :
+        this.colors.surfaceLight.secondaryBlueHeavy
     }
   },
   watch: {
@@ -741,6 +849,7 @@ export default {
     this.$store.set('page/title', this.title)
     this.$store.set('page/editor', this.editor)
     this.$store.set('page/updatedAt', this.updatedAt)
+    
     if (this.effectivePermissions) {
       this.$store.set('page/effectivePermissions', JSON.parse(Buffer.from(this.effectivePermissions, 'base64').toString()))
     }
@@ -764,9 +873,25 @@ export default {
   },
   mounted () {
     if (this.$vuetify.theme.dark) {
-      this.scrollStyle.bar.background = '#FFFFFF'
+      this.scrollStyle.bar.background = this.colors.surfaceDark.tertiaryNeutralLite
     } else {
-      this.scrollStyle.bar.background = colors.text.darkGrey
+      this.scrollStyle.bar.background = this.colors.surfaceLight.tertiaryNeutralLite
+    }
+
+    // -> Initialize hasMorePages from backend data
+    if (this.recentActivitiesDecoded?.hasMore !== undefined) {
+      this.hasMorePages = this.recentActivitiesDecoded.hasMore
+    } else {
+      // Fallback for backward compatibility
+      this.hasMorePages = false
+    }
+
+    // -> Load sidebar width from localStorage
+    this.loadSidebarWidth()
+
+    // -> Set footer margin based on navMode
+    if (this.navMode === 'NONE' || this.$vuetify.breakpoint.smAndDown) {
+      document.documentElement.style.setProperty('--sidebar-width', '0px')
     }
 
     // -> Check side navigation visibility
@@ -778,10 +903,27 @@ export default {
     // -> Highlight Code Blocks
     Prism.highlightAllUnder(this.$refs.container)
 
-    // -> Render Mermaid diagrams
-    mermaid.mermaidAPI.initialize({
-      startOnLoad: true,
-      theme: this.$vuetify.theme.dark ? `dark` : `default`
+    // -> Render Mermaid diagrams (Mermaid v10)
+    const mermaidTheme = this.$vuetify.theme.dark ? 'dark' : 'default'
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: mermaidTheme,
+      securityLevel: 'loose'
+    })
+
+    // Only run mermaid within this page container
+    if (this.$refs.container) {
+      const mermaidDivs = this.$refs.container.querySelectorAll('.mermaid:not([data-processed])')
+      if (mermaidDivs && mermaidDivs.length > 0) {
+        mermaid.run({ nodes: Array.from(mermaidDivs) })
+      }
+    }
+
+    // Protect diagrams from browser color adjustments
+    this.$nextTick(() => {
+      if (typeof this.applyColorSchemeProtection === 'function') {
+        this.applyColorSchemeProtection()
+      }
     })
 
     // -> Handle anchor scrolling
@@ -803,14 +945,257 @@ export default {
         el.onclick = ev => {
           ev.preventDefault()
           ev.stopPropagation()
-          this.$vuetify.goTo(decodeURIComponent(ev.currentTarget.hash), this.scrollOpts)
+          const hash = decodeURIComponent(ev.currentTarget.hash)
+          if (hash && hash.length > 1) {
+            this.$vuetify.goTo(hash, this.scrollOpts)
+          }
         }
       })
 
+      // Delegated image click: open image source in a new tab (Confluence-like behavior)
+      const container = this.$refs.container
+      if (container) {
+        container.addEventListener('click', (ev) => {
+          const target = ev.target
+          if (target && target.tagName === 'IMG') {
+            this.applyImageFitClass(target)
+            if (target.closest('a')) return
+            const src = target.getAttribute('src') || target.dataset.src
+            if (src) {
+              ev.preventDefault()
+              ev.stopPropagation()
+              this.openImageOverlay(src, target.getAttribute('alt') || '')
+            }
+          }
+        })
+        this.startImageClassSync(container)
+      }
+
       window.boot.notify('page-ready')
     })
+
+    // ESC key closes image overlay
+    this._imageOverlayEscHandler = (e) => {
+      if (e.key === 'Escape' && this.isImageOverlayVisible) {
+        this.closeImageOverlay()
+      }
+    }
+    document.addEventListener('keydown', this._imageOverlayEscHandler)
+
+    // -> Initialize TOC scroll spy
+    this.$nextTick(() => {
+      this.initTocScrollSpy()
+      if (this.$refs.pageHeaderSection) {
+        const el = this.$refs.pageHeaderSection.$el || this.$refs.pageHeaderSection
+        this._headerObserver = new ResizeObserver(() => {
+          this.tocTop = Math.max(80, el.getBoundingClientRect().bottom + 12)
+        })
+        this._headerObserver.observe(el)
+      }
+    })
+  },
+  beforeDestroy() {
+    // Clean up TOC scroll spy
+    if (this.tocObserver) {
+      this.tocObserver.disconnect()
+      this.tocObserver = null
+    }
+    if (this._headerObserver) {
+      this._headerObserver.disconnect()
+      this._headerObserver = null
+    }
+    if (this._scrollSpyHandler) {
+      window.removeEventListener('scroll', this._scrollSpyHandler)
+      this._scrollSpyHandler = null
+    }
+    if (this._scrollLockTimer) {
+      clearTimeout(this._scrollLockTimer)
+    }
+    // Clean up resize event listeners
+    if (this.isResizing) {
+      document.removeEventListener('mousemove', this.handleResize)
+      document.removeEventListener('mouseup', this.stopResize)
+      document.body.style.cursor = 'auto'
+      document.body.style.userSelect = 'auto'
+    }
+    if (this._imageOverlayEscHandler) {
+      document.removeEventListener('keydown', this._imageOverlayEscHandler)
+    }
+    if (this.imageClassObserver) {
+      this.imageClassObserver.disconnect()
+      this.imageClassObserver = null
+    }
+    if (this.imageClassTimers && this.imageClassTimers.length > 0) {
+      this.imageClassTimers.forEach(timerId => clearTimeout(timerId))
+      this.imageClassTimers = []
+    }
   },
   methods: {
+    applyImageFitClass(img) {
+      if (!img || img.tagName !== 'IMG') return
+
+      const inTable = !!img.closest('table')
+
+      if (inTable) {
+        if (!img.classList.contains('img-fit-table-visible')) {
+          img.classList.add('img-fit-table-visible')
+        }
+        if (img.classList.contains('img-fit-100percent')) {
+          img.classList.remove('img-fit-100percent')
+        }
+      } else {
+        if (!img.classList.contains('img-fit-100percent')) {
+          img.classList.add('img-fit-100percent')
+        }
+        if (img.classList.contains('img-fit-table-visible')) {
+          img.classList.remove('img-fit-table-visible')
+        }
+      }
+
+      if (!img.closest('a')) {
+        img.style.cursor = 'zoom-in'
+      }
+    },
+
+    applyImageFitClasses(container) {
+      if (!container || !container.querySelectorAll) return
+      container.querySelectorAll('img').forEach(img => this.applyImageFitClass(img))
+    },
+
+    startImageClassSync(container) {
+      this.applyImageFitClasses(container)
+
+      const schedule = (delay) => {
+        const timerId = setTimeout(() => {
+          this.applyImageFitClasses(container)
+        }, delay)
+        this.imageClassTimers.push(timerId)
+      }
+
+      schedule(120)
+      schedule(700)
+      schedule(2000)
+
+      if (typeof MutationObserver !== 'undefined') {
+        if (this.imageClassObserver) {
+          this.imageClassObserver.disconnect()
+        }
+
+        this.imageClassObserver = new MutationObserver((mutations) => {
+          mutations.forEach((mutation) => {
+            mutation.addedNodes.forEach((node) => {
+              if (!node || node.nodeType !== 1) return
+              if (node.tagName === 'IMG') {
+                this.applyImageFitClass(node)
+              } else if (node.querySelectorAll) {
+                node.querySelectorAll('img').forEach(img => this.applyImageFitClass(img))
+              }
+            })
+          })
+        })
+
+        this.imageClassObserver.observe(container, {
+          childList: true,
+          subtree: true
+        })
+
+        const observerStopTimer = setTimeout(() => {
+          if (this.imageClassObserver) {
+            this.imageClassObserver.disconnect()
+            this.imageClassObserver = null
+          }
+        }, 5000)
+        this.imageClassTimers.push(observerStopTimer)
+      }
+    },
+
+    applyColorSchemeProtection () {
+      // Protect mermaid / svg diagrams from browser auto color adjustments (forced-colors / dark mode)
+      // Keep this scoped to the page container to avoid touching other parts of the DOM.
+      const colorScheme = this.$vuetify.theme.dark ? 'dark' : 'light'
+
+      const containerRoot = this.$refs.container
+      if (!containerRoot || !containerRoot.querySelectorAll) return
+
+      // Mermaid
+      containerRoot.querySelectorAll('.mermaid').forEach(container => {
+        container.style.setProperty('color-scheme', colorScheme, 'important')
+        container.style.setProperty('forced-color-adjust', 'none', 'important')
+        container.style.setProperty('filter', 'none', 'important')
+
+        container.querySelectorAll('svg').forEach(svg => {
+          svg.style.setProperty('color-scheme', colorScheme, 'important')
+          svg.style.setProperty('forced-color-adjust', 'none', 'important')
+          svg.style.setProperty('filter', 'none', 'important')
+        })
+      })
+
+      // Draw.io / other diagram blocks (same approach as editor preview)
+      containerRoot.querySelectorAll('pre.diagram').forEach(diagram => {
+        diagram.style.setProperty('color-scheme', colorScheme, 'important')
+        diagram.style.setProperty('forced-color-adjust', 'none', 'important')
+        diagram.style.setProperty('filter', 'none', 'important')
+
+        diagram.querySelectorAll('svg').forEach(svg => {
+          svg.style.setProperty('color-scheme', colorScheme, 'important')
+          svg.style.setProperty('forced-color-adjust', 'none', 'important')
+          svg.style.setProperty('filter', 'none', 'important')
+        })
+      })
+    },
+    startResize(e) {
+      if (this.$vuetify.breakpoint.smAndDown) return
+
+      this.isResizing = true
+      this.resizeStartX = e.clientX
+      this.resizeStartWidth = this.sidebarWidth
+
+      document.addEventListener('mousemove', this.handleResize)
+      document.addEventListener('mouseup', this.stopResize)
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+
+      e.preventDefault()
+    },
+    handleResize(e) {
+      if (!this.isResizing) return
+
+      const deltaX = this.$vuetify.rtl ?
+        (this.resizeStartX - e.clientX) :
+        (e.clientX - this.resizeStartX)
+
+      const newWidth = this.resizeStartWidth + deltaX
+
+      if (newWidth >= this.sidebarMinWidth && newWidth <= this.sidebarMaxWidth) {
+        this.sidebarWidth = newWidth
+        localStorage.setItem('navSidebarWidth', newWidth)
+        document.documentElement.style.setProperty('--sidebar-width', `${newWidth}px`)
+      }
+    },
+    stopResize() {
+      this.isResizing = false
+      document.removeEventListener('mousemove', this.handleResize)
+      document.removeEventListener('mouseup', this.stopResize)
+      document.body.style.cursor = 'auto'
+      document.body.style.userSelect = 'auto'
+    },
+    resetSidebarWidth() {
+      this.sidebarWidth = 300
+      localStorage.setItem('navSidebarWidth', 300)
+      document.documentElement.style.setProperty('--sidebar-width', '300px')
+    },
+    loadSidebarWidth() {
+      const savedWidth = localStorage.getItem('navSidebarWidth')
+      if (savedWidth) {
+        const width = parseInt(savedWidth)
+        if (width >= this.sidebarMinWidth && width <= this.sidebarMaxWidth) {
+          this.sidebarWidth = width
+          document.documentElement.style.setProperty('--sidebar-width', `${width}px`)
+        }
+      } else {
+        document.documentElement.style.setProperty('--sidebar-width', '300px')
+      }
+    },
     async checkIfFollowing() {
       try {
         const response = await this.$apollo.query({
@@ -894,6 +1279,56 @@ export default {
     toggleOpenState(id) {
       this.$set(this.openStates, id, !this.openStates[id])
     },
+    scrollToAnchor (anchor) {
+      this.activeTocAnchor = anchor
+      // Prevent scroll spy from overriding the clicked anchor while
+      // the 1500ms scroll animation passes through intermediate headings
+      this._scrollingToAnchor = true
+      clearTimeout(this._scrollLockTimer)
+      this._scrollLockTimer = setTimeout(() => {
+        this._scrollingToAnchor = false
+      }, this.scrollOpts.duration + 100)
+      this.$vuetify.goTo(decodeURIComponent(anchor), this.scrollOpts)
+    },
+    toggleSections () {
+      if (!this.showToc) {
+        this.showToc = true
+        this.tocCollapsed = false
+      } else {
+        this.tocCollapsed = !this.tocCollapsed
+      }
+    },
+    closeSections () {
+      this.showToc = false
+      this.tocCollapsed = false
+    },
+    initTocScrollSpy () {
+      if (!this.tocFlat || this.tocFlat.length === 0) return
+      const anchors = this.tocFlat.map(t => t.anchor)
+      const headings = anchors
+        .map(a => document.querySelector(decodeURIComponent(a)))
+        .filter(Boolean)
+      if (headings.length === 0) return
+      const updateActive = () => {
+        // Skip while a click-triggered scroll animation is running
+        if (this._scrollingToAnchor) return
+        // A heading is active when its top edge is at or above 30% of the
+        // viewport. getBoundingClientRect is reliable regardless of DOM nesting.
+        const threshold = window.innerHeight * 0.3
+        let current = headings[0]
+        for (const h of headings) {
+          if (h.getBoundingClientRect().top <= threshold) {
+            current = h
+          }
+        }
+        if (current) {
+          this.activeTocAnchor = '#' + current.id
+        }
+      }
+      updateActive()
+      this._scrollSpyHandler = _.throttle(updateActive, 80)
+      window.addEventListener('scroll', this._scrollSpyHandler, { passive: true })
+    },
     goHome () {
       window.location.assign(`/${this.sitePath}`)
     },
@@ -903,6 +1338,11 @@ export default {
     upBtnScroll () {
       const scrollOffset = window.pageYOffset || document.documentElement.scrollTop
       this.upBtnShown = scrollOffset > window.innerHeight * 0.33
+      if (this.$refs.pageHeaderSection) {
+        const el = this.$refs.pageHeaderSection.$el || this.$refs.pageHeaderSection
+        const headerBottom = el.getBoundingClientRect().bottom
+        this.tocTop = Math.max(80, headerBottom + 12)
+      }
     },
     print () {
       this.$nextTick(() => {
@@ -992,6 +1432,113 @@ export default {
     pageDelete () {
       this.$root.$emit('pageDelete')
     },
+    pageShare () {
+      const pageUrl = window.location.href
+      navigator.clipboard.writeText(pageUrl).then(() => {
+        this.$store.commit('showNotification', {
+          style: 'green',
+          message: 'Page link copied to clipboard.',
+          icon: 'link'
+        })
+      }).catch(() => {
+        this.$store.commit('showNotification', {
+          style: 'red',
+          message: 'Failed to copy link.',
+          icon: 'alert'
+        })
+      })
+    },
+    openImageOverlay(src, alt = '') {
+      this.imageOverlaySrc = src
+      // derive a display name from src (strip query/hash, take filename)
+      try {
+        const clean = src.split(/[?#]/)[0]
+        this.imageOverlayName = clean.split('/').pop() || 'image'
+      } catch (e) {
+        this.imageOverlayName = 'image'
+      }
+      this.isImageOverlayVisible = true
+      document.documentElement.classList.add('image-overlay-active')
+    },
+    closeImageOverlay() {
+      this.isImageOverlayVisible = false
+      this.imageOverlaySrc = ''
+      document.documentElement.classList.remove('image-overlay-active')
+    },
+    buildPageUrl(page) {
+      const locale = this.recentActivitiesDecoded.useNamespacing ? `/${page.locale}` : ''
+      return `/${this.recentActivitiesDecoded.sitePath}${locale}/${page.path}`
+    },
+    async loadMoreActivities() {
+      if (!this.recentActivitiesDecoded || this.loadingMoreActivities) return
+
+      this.loadingMoreActivities = true
+      const currentOffset = this.recentActivitiesDecoded.pages.length
+      
+      try {
+        console.log('[loadMoreActivities] Fetching with offset:', currentOffset, 'siteId:', this.recentActivitiesDecoded.siteId)
+        
+        const response = await fetch('/graphql', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            query: `
+              query listPagesQuery($siteId: String, $limit: Int, $offset: Int) {
+                listPages(
+                  siteId: $siteId
+                  limit: $limit
+                  offset: $offset
+                  orderBy: UPDATED
+                  orderByDirection: DESC
+                ) {
+                  id
+                  title
+                  path
+                  locale
+                  createdAt
+                  updatedAt
+                  authorName
+                }
+              }
+            `,
+            variables: {
+              siteId: this.recentActivitiesDecoded.siteId,
+              limit: 6,
+              offset: currentOffset
+            }
+          })
+        })
+        
+        const result = await response.json()
+        console.log('[loadMoreActivities] Response:', result)
+        
+        if (result.errors) {
+          console.error('[loadMoreActivities] GraphQL errors:', result.errors)
+          return
+        }
+        
+        const newPages = result.data?.listPages || []
+
+        // Check if there are more pages by fetching limit+1
+        // If we got more than 5, there are more pages available
+        const hasMore = newPages.length > 5
+        const pagesToAdd = newPages.slice(0, 5)
+        
+        if (pagesToAdd.length > 0) {
+          this.recentActivitiesDecoded.pages.push(...pagesToAdd)
+        }
+        // Use $nextTick to ensure the computed property sees the updated state
+        await this.$nextTick()
+        this.hasMorePages = hasMore
+      } catch (err) {
+        console.error('Failed to load more activities:', err)
+      } finally {
+        this.loadingMoreActivities = false
+      }
+    },
     handleSideNavVisibility () {
       if (window.innerWidth === this.winWidth) { return }
       this.winWidth = window.innerWidth
@@ -1000,6 +1547,14 @@ export default {
       } else {
         this.navShown = false
       }
+    },
+    isPageNewlyCreated(page) {
+      const createdMs = new Date(page.createdAt).getTime()
+      const updatedMs = new Date(page.updatedAt).getTime()
+      // Page is newly created if timestamps are within 3 seconds of each other
+      // This accounts for millisecond delays in database transactions and processing
+      const diffSeconds = Math.abs(updatedMs - createdMs) / 1000
+      return diffSeconds <= 3
     },
     goToComments (focusNewComment = false) {
       this.$vuetify.goTo('#discussion', this.scrollOpts)
@@ -1011,8 +1566,7 @@ export default {
 }
 </script>
 
-<style lang="scss">
-
+<style lang="scss" scoped>
 .breadcrumbs-nav {
   .v-btn {
     min-width: 0;
@@ -1028,22 +1582,10 @@ export default {
   }
 }
 
-.page-col-sd {
-  margin-top: -90px;
-  align-self: flex-start;
-  position: sticky;
-  top: 64px;
-  max-height: calc(100vh - 64px);
-  overflow-y: auto;
-  -ms-overflow-style: none;
-}
-
-.page-col-sd::-webkit-scrollbar {
-  display: none;
-}
-
 .page-header-section {
   position: relative;
+  min-height: 90px;
+  padding: 16px 0;
 
   > .is-page-header {
     position: relative;
@@ -1076,7 +1618,7 @@ export default {
       }
 
       .v-icon {
-        color: mc('primary', '1');
+        color: mc('surface-light', 'secondary-blue-heavy');
       }
 
       &:first-child {
@@ -1092,32 +1634,691 @@ export default {
   }
 }
 
-#view-discussion {
-  color: rgba(mc("ext-sapphire", "5"), .75);
-
-  &.dark {
-    color: mc("ext-peacock", "2");
-  }
+.page-header-info {
+  flex: 1;
+  min-width: 0;
 }
 
-.card-title {
-  color: mc("ext-peacock", "4");
+.page-header-meta {
+  &-author {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: mc('text-light', 'secondary');
 
-  &.dark {
-    color: mc("ext-peacock", "1");
-  }
-}
-
-.hover-icon {
-  &:hover > .v-btn__content > .v-icon {
-    color: mc("primary", "1") !important;
+    @at-root .theme--dark & {
+      color: mc('text-dark', 'secondary');
+    }
   }
 
-  &.theme--dark {
-    &:hover > .v-btn__content > .v-icon {
-      color: mc("ext-teal", "1") !important;
+  &-sep {
+    margin: 0 8px;
+    font-size: 0.85rem;
+    color: mc('neutral', '400');
+  }
+
+  &-date {
+    font-size: 0.85rem;
+    color: mc('neutral', '500');
+    cursor: default;
+
+    @at-root .theme--dark & {
+      color: mc('neutral', '400');
+    }
+  }
+
+  &-history {
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+      opacity: 1;
     }
   }
 }
 
+.page-header-tags {
+  .v-chip {
+    height: 22px;
+    font-size: 0.7rem;
+  }
+}
+
+.page-header-meta-action {
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+// Floating sticky Table of Contents
+.floating-toc {
+  position: fixed;
+  right: 24px;
+  width: 220px;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  z-index: 5;
+  opacity: 0.4;
+  transition: opacity 0.3s ease, top 0.15s ease;
+  background-color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid mc('neutral', '200');
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+
+  @at-root .theme--dark & {
+    background-color: rgba(30, 32, 44, 0.92);
+    border-color: mc('neutral', '700');
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  &:hover {
+    opacity: 1;
+  }
+
+  // hide scrollbar
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+
+  &-label {
+    display: flex;
+    align-items: center;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: mc('neutral', '400');
+    margin-bottom: 12px;
+    user-select: none;
+
+    &-left {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      transition: color 0.2s ease;
+
+      &:hover {
+        color: mc('neutral', '600');
+
+        @at-root .theme--dark & {
+          color: mc('neutral', '300');
+        }
+      }
+    }
+  }
+
+  &-close {
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  &.is-collapsed {
+    .floating-toc-label {
+      margin-bottom: 0;
+    }
+  }
+
+  &-items {
+    border-left: 2px solid mc('neutral', '200');
+    display: flex;
+    flex-direction: column;
+    max-height: 600px;
+    overflow: hidden;
+    transition: max-height 0.35s ease, opacity 0.25s ease, margin-top 0.25s ease;
+    opacity: 1;
+    margin-top: 0;
+
+    &.collapsed {
+      max-height: 0;
+      opacity: 0;
+      margin-top: 0;
+    }
+
+    @at-root .theme--dark & {
+      border-left-color: mc('neutral', '700');
+    }
+  }
+
+  &-link {
+    display: block;
+    padding: 4px 0 4px 14px;
+    margin-left: -2px;
+    border-left: 2px solid transparent;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: mc('neutral', '500');
+    text-decoration: none;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    @at-root .theme--dark & {
+      color: mc('neutral', '400');
+    }
+
+    &:hover {
+      color: mc('text-light', 'primary');
+      border-left-color: mc('neutral', '400');
+
+      @at-root .theme--dark & {
+        color: mc('text-dark', 'primary');
+        border-left-color: mc('neutral', '500');
+      }
+    }
+
+    &.active {
+      color: mc('surface-light', 'secondary-blue-heavy');
+      border-left-color: mc('surface-light', 'secondary-blue-heavy');
+      font-weight: 600;
+      background-color: mc('blue', '50');
+      border-radius: 0 4px 4px 0;
+
+      @at-root .theme--dark & {
+        color: mc('teal', '400');
+        border-left-color: mc('teal', '400');
+        background-color: rgba(38, 198, 218, 0.08);
+      }
+    }
+
+    &.depth-1 { padding-left: 28px; font-size: 0.72rem; }
+    &.depth-2 { padding-left: 42px; font-size: 0.7rem; }
+    &.depth-3 { padding-left: 56px; font-size: 0.68rem; }
+  }
+}
+
+#view-discussion {
+  color: mc("action-light", "active");
+
+  &.dark {
+    color: mc("action-dark", "highlight-on-lite");
+  }
+}
+
+.inverse-hover-btn:hover {
+  background-color: mc("action-light", "primary-hover-on-lite") !important;
+
+  .v-icon, span{
+    color: mc("surface-light", "white") !important;
+  }
+
+  &.dark {
+    background-color: mc("action-dark", "highlight-on-lite") !important;
+
+    .v-icon, span{
+      color: mc("neutral", "850") !important;
+    }
+  }
+}
+
+.hover-icon.v-btn {
+  &:hover > .v-btn__content > .v-icon {
+    color: mc("action-light", "active") !important;
+  }
+
+  &.theme--dark {
+    &:hover > .v-btn__content > .v-icon {
+      color: mc("action-dark", "highlight-on-lite") !important;
+    }
+  }
+}
+
+.v-btn.hover-btn {
+  &:hover {
+    background-color: mc('action-dark', 'highlight-on-lite') !important;
+  }
+}
+
+.v-btn.rounded-fully {
+  border-radius: 100% !important;
+}
+
+.v-btn.action-btn {
+  background-color: mc("action-light", "highlight-on-lite") !important;
+  color: mc("text-light", "primary") !important;
+}
+
+.v-btn.border-btn {
+  border: 1px solid mc("border-light", "primary") !important;
+  box-shadow: none !important;
+
+  &.hover-btn:hover {
+    background-color: mc("teal", "800") !important;
+    border: 1px solid mc("teal", "800") !important;
+
+    .v-icon {
+      color: mc("surface-light", "white") !important;
+    }
+
+    &.delete-btn {
+      background-color: mc("warning-action-light", "secondary-default") !important;
+      border: 1px solid mc("warning-action-light", "secondary-default") !important;
+
+      .v-icon {
+        color: mc("action-light", "content-white") !important;
+      }
+    }
+
+    &.dark {
+      background-color: mc("teal", "500") !important;
+      border: 1px solid mc("teal", "500") !important;
+
+      .v-icon {
+        color: mc("action-dark", "content-on-lite") !important;
+      }
+
+      &.delete-btn {
+        background-color: mc("warning-action-dark", "secondary-default") !important;
+        border: 1px solid mc("warning-action-dark", "secondary-default") !important;
+
+        .v-icon {
+          color: mc("action-dark", "content-on-lite") !important;
+        }
+      }
+    }
+  }
+
+  &.theme--dark {
+    border: 1px solid mc("border-dark", "primary") !important;
+
+    &.hover-btn:hover {
+      background-color: mc("action-dark", "highlight-on-lite") !important;
+      border: 1px solid mc("action-dark", "highlight-on-lite") !important;
+
+      .v-icon {
+        color: mc("action-dark", "content-on-lite") !important;
+      }
+    }
+  }
+}
+
+.text-primary {
+  color: mc("text-light", "primary") !important;
+
+  &.dark {
+    color: mc("text-dark", "primary") !important;
+  }
+}
+
+.page-header-container {
+  background-color: mc("surface-light", "tertiary-neutral-lite");
+
+  .headline {
+    color: mc("text-light", "primary");
+  }
+
+  &.dark-theme {
+    background-color: mc("surface-dark", "info-heavy");
+
+    .headline {
+      color: mc("text-dark", "primary");
+    }
+  }
+}
+
+.page-bg {
+  background-color: mc("surface-light", "white");
+
+  &.theme--dark {
+    background-color: mc("surface-dark", "black");
+  }
+}
+
+.tile-border {
+  border: 1px solid mc("border-light", "primary") !important;
+  box-shadow: none !important;
+
+  &.theme--dark {
+    border: 1px solid mc("border-dark", "primary") !important;
+  }
+
+  .tag-title {
+    color: mc("action-light", "active");
+
+    &.dark {
+      color: mc("action-dark", "highlight-on-lite");
+    }
+  }
+
+  .v-chip.hover-chip:hover {
+    background-color: mc("action-light", "primary-hover-on-lite") !important;
+    border: 1px solid mc("action-light", "primary-hover-on-lite") !important;
+
+    .v-icon, .tag-title {
+      color: mc("surface-light", "white") !important;
+    }
+
+    &.dark {
+      background-color: mc("action-dark", "highlight-on-lite") !important;
+
+      .v-icon, .tag-title {
+        color: mc("neutral", "850") !important;
+      }
+    }
+  }
+}
+
+.dialog-header {
+  background-color: mc("surface-dark", "primary-blue-lite");
+}
+
+.v-tooltip__content{
+  border-radius: 16px;
+}
+
+// Resizable sidebar styles
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  cursor: col-resize;
+  background: transparent;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 100;
+  opacity: 0;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      mc('blue', '300') 20%,
+      mc('blue', '400') 50%,
+      mc('blue', '300') 80%,
+      transparent 100%
+    );
+    border-radius: 2px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: scaleY(0);
+    left: 4.5px;
+  }
+
+  &::after {
+    content: '⋮⋮';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 14px;
+    line-height: 0.8;
+    letter-spacing: 2px;
+    color: mc('blue', '400');
+    opacity: 0;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-weight: bold;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  &.resize-handle-right {
+    right: -6px;
+  }
+
+  &.resize-handle-left {
+    left: -6px;
+  }
+
+  .v-navigation-drawer:hover &,
+  &:hover {
+    opacity: 1;
+
+    &::before {
+      transform: scaleY(1);
+    }
+
+    &::after {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1.1);
+    }
+  }
+
+  &:hover {
+    background: mc('action-light', 'highlight-on-lite');
+    border-radius: 0 4px 4px 0;
+
+    &::before {
+      background: linear-gradient(
+        180deg,
+        mc('blue', '200') 0%,
+        mc('blue', '500') 20%,
+        mc('blue', '600') 50%,
+        mc('blue', '500') 80%,
+        mc('blue', '200') 100%
+      );
+      box-shadow: 0 0 8px mc('blue', '300');
+    }
+
+    &::after {
+      color: mc('blue', '600');
+      text-shadow: 0 0 4px mc('blue', '400');
+    }
+  }
+
+  &:active {
+    background: mc('action-light', 'primary-hover-on-lite');
+    border-radius: 0 4px 4px 0;
+
+    &::before {
+      background: linear-gradient(
+        180deg,
+        mc('blue', '300') 0%,
+        mc('blue', '600') 20%,
+        mc('blue', '700') 50%,
+        mc('blue', '600') 80%,
+        mc('blue', '300') 100%
+      );
+      box-shadow: 0 0 12px mc('blue', '400');
+      transform: scaleY(1.05);
+    }
+
+    &::after {
+      color: mc('blue', '700');
+      transform: translate(-50%, -50%) scale(1.2);
+    }
+  }
+
+  &.resize-handle-left:hover,
+  &.resize-handle-left:active {
+    border-radius: 4px 0 0 4px;
+  }
+}
+
+// Image overlay styles
+.image-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2000; // above drawers & tooltips
+  background: rgba(0,0,0,0.65);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  backdrop-filter: blur(6px);
+}
+.image-overlay-img {
+  max-width: 90vw;
+  max-height: 80vh;
+  object-fit: contain;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  border-radius: 6px;
+}
+.image-overlay-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.2);
+  color: #000;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  transition: box-shadow .15s ease, transform .15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.image-overlay-close:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transform: scale(1.05);
+}
+.image-overlay-name {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background: rgba(255,255,255,0.9);
+  color: #000;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-family: monospace;
+  border-radius: 4px;
+  max-width: 50vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+
+// Blur underlying app when overlay active
+.image-overlay-active .v-application--wrap {
+  filter: blur(3px) brightness(.8);
+  transition: filter .2s ease;
+}
+
+.v-navigation-drawer {
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  // Make scrollbar stick to bottom of sidebar
+  .sidebar-scroll-container {
+    height: 100% !important;
+
+    // vuescroll container and panel should fill height
+    ::v-deep .__container,
+    ::v-deep .__panel {
+      height: 100% !important;
+      min-height: 0 !important;
+    }
+
+    // Content wrapper for horizontal scroll
+    ::v-deep .__view {
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+      min-width: min-content;
+      padding-bottom: 12px;
+    }
+
+    // Pin horizontal scrollbar to bottom
+    ::v-deep .__rail-is-horizontal {
+      position: absolute !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      top: auto !important;
+      z-index: 10 !important;
+      margin: 0 !important;
+    }
+
+    // Vertical scrollbar styling
+    ::v-deep .__rail-is-vertical {
+      top: 0 !important;
+      bottom: 0 !important;
+    }
+  }
+
+  &.resizing {
+    transition: none;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  }
+
+  &:hover .sidebar-resize-handle {
+    opacity: 1;
+    transition-delay: 0.3s;
+  }
+
+  .sidebar-resize-handle:hover {
+    transition-delay: 0s !important;
+  }
+}
+.theme--dark {
+  .sidebar-resize-handle {
+    &::before {
+      background: linear-gradient(
+        180deg,
+        transparent 0%,
+        mc('text-dark', 'brand-primary') 20%,
+        mc('action-dark', 'active') 50%,
+        mc('text-dark', 'brand-primary') 80%,
+        transparent 100%
+      );
+    }
+
+    &::after {
+      color: mc('action-dark', 'active');
+    }
+
+    &:hover {
+      background: mc('action-dark', 'highlight-on-lite');
+
+      &::before {
+        background: linear-gradient(
+          180deg,
+          mc('text-dark', 'brand-primary') 0%,
+          mc('action-dark', 'active') 20%,
+          mc('blue', '200') 50%,
+          mc('action-dark', 'active') 80%,
+          mc('text-dark', 'brand-primary') 100%
+        );
+        box-shadow: 0 0 8px mc('action-dark', 'active');
+      }
+
+      &::after {
+        color: mc('blue', '200');
+        text-shadow: 0 0 4px mc('action-dark', 'active');
+      }
+    }
+
+    &:active {
+      background: mc('action-dark', 'primary-hover-on-lite');
+
+      &::before {
+        background: linear-gradient(
+          180deg,
+          mc('action-dark', 'active') 0%,
+          mc('blue', '200') 20%,
+          mc('blue', '100') 50%,
+          mc('blue', '200') 80%,
+          mc('action-dark', 'active') 100%
+        );
+        box-shadow: 0 0 12px mc('blue', '200');
+      }
+
+      &::after {
+        color: mc('blue', '100');
+      }
+    }
+  }
+}
+</style>
+
+// Global styles
+<style lang="scss">
+.theme--dark .v-application--wrap {
+  background-color: mc("surface-dark", "black");
+}
 </style>

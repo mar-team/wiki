@@ -1,7 +1,9 @@
 const graphHelper = require('../../helpers/graph')
 const safeRegex = require('safe-regex')
 const _ = require('lodash')
+const { ensureMail } = require('../../core/ensure-mail')
 const { handleUserSiteInactivityAfterUnassign, getSiteIdsFromGroups } = require('../services/userSiteInactivityService')
+const userService = require('../services/userService')
 
 const {
   getManagedSiteIdsFromGroups,
@@ -15,10 +17,12 @@ const {
 
 const GROUP_NAME_EXISTS_ERROR = 'A group with this name already exists.'
 
+// 'write:users' remains as user management permission and is NOT considered a system permission.
+// NOTE: 'groups', 'navigation', 'theme', 'api', 'system' remain protected system-level scopes.
 const isSystemAdminPermission = (permissions) => {
   return permissions.some(p => {
     const resType = _.last(p.split(':'))
-    return ['users', 'groups', 'navigation', 'theme', 'api', 'system'].includes(resType)
+    return ['groups', 'navigation', 'theme', 'api', 'system'].includes(resType)
   })
 }
 
@@ -190,20 +194,27 @@ module.exports = {
         throw graphHelper.badRequest('Invalid User ID')
       }
 
-      // Check for existing relation
-      const relExist = await WIKI.models
-        .knex('userGroups')
-        .where({
-          userId: args.userId,
-          groupId: args.groupId
-        })
-        .first()
-      if (relExist) {
-        throw graphHelper.badRequest('User is already assigned to group.')
+      // Attempt to relate user to group. Rely on DB unique constraint for race-free duplicate prevention.
+      try {
+        await grp.$relatedQuery('users').relate(usr.id)
+      } catch (err) {
+        // Postgres unique violation error code
+        if (err && (err.code === '23505' || /unique/i.test(err.message))) {
+          throw graphHelper.badRequest('User is already assigned to group.')
+        }
+        throw err
       }
 
-      // Assign user to group
-      await grp.$relatedQuery('users').relate(usr.id)
+      // Send notification email (backend enforced) - ignore errors to not block assignment
+      try {
+        ensureMail()
+        const sent = await userService.sendUserAddedToGroupEmail(usr, grp)
+        if (!sent) {
+          WIKI.logger.warn(`Group assignment email not sent for user ${usr.email} -> group ${grp.name}. Transport or template may be missing.`)
+        }
+      } catch (err) {
+        WIKI.logger.warn(`Failed to send user-added-to-group email to ${usr.email} for group ${grp.name}: ${err.message}`)
+      }
 
       // Revoke tokens for this user
       WIKI.auth.revokeUserTokens({ id: usr.id, kind: 'u' })

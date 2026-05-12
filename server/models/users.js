@@ -9,13 +9,12 @@ const validate = require('validate.js')
 const qr = require('qr-image')
 const { handleUserSiteInactivityAfterUnassign } = require('../graph/services/userSiteInactivityService')
 const userService = require('../graph/services/userService')
-
 const bcryptRegexp = /^\$2[ayb]\$[0-9]{2}\$[A-Za-z0-9./]{53}$/
 
 /**
  * Users model
  */
-module.exports = class User extends Model {
+class User extends Model {
   static get tableName() { return 'users' }
 
   static get jsonSchema() {
@@ -118,6 +117,22 @@ module.exports = class User extends Model {
     }
 
     await this.generateHash()
+  }
+
+  async $afterInsert(queryContext) {
+    await super.$afterInsert(queryContext)
+
+    // Auto-create user_settings for new user
+    try {
+      await WIKI.models.userSettings.query().insert({
+        user_id: this.id,
+        is_release_info_seen: false
+      }).onConflict('user_id').ignore()
+
+      WIKI.logger.debug(`✓ Created user_settings for new user ${this.id}`)
+    } catch (err) {
+      WIKI.logger.warn(`⚠ Failed to create user_settings for user ${this.id}: ${err.message}`)
+    }
   }
 
   // ------------------------------------------------
@@ -587,7 +602,7 @@ module.exports = class User extends Model {
    *
    * @param {Object} param0 User Fields
    */
-  static async createNewUser({ providerKey, email, passwordRaw, name, groups, mustChangePassword, sendWelcomeEmail }) {
+  static async createNewUser({ providerKey, email, passwordRaw, name, groups = [], mustChangePassword, sendWelcomeEmail = true, createdByScript = false }) {
     // Input sanitization
     email = _.toLower(email)
 
@@ -664,7 +679,10 @@ module.exports = class User extends Model {
         isSystem: false,
         isActive: true,
         isVerified: true,
-        mustChangePwd: false
+        mustChangePwd: false,
+        // new flags introduced by migration 2.5.143
+        welcomeMailWasSent: false,
+        createdByScript: createdByScript === true
       }
 
       if (providerKey === `local`) {
@@ -680,7 +698,12 @@ module.exports = class User extends Model {
       }
 
       if (sendWelcomeEmail) {
-        userService.sendWelcomeEmail(newUsr)
+        try {
+          await userService.sendWelcomeEmail(newUsr)
+          await WIKI.models.users.query().patch({ welcomeMailWasSent: true }).where({ id: newUsr.id })
+        } catch (err) {
+          WIKI.logger.warn(`Failed to send welcome email to ${newUsr.email}: ${err.message}`)
+        }
       }
     } else {
       throw new WIKI.Error.AuthAccountAlreadyExists()
@@ -716,19 +739,38 @@ module.exports = class User extends Model {
         usrData.password = newPassword
       }
       if (_.isArray(groups)) {
-        const usrGroupsRaw = await usr.$relatedQuery('groups')
-        const usrGroups = _.map(usrGroupsRaw, 'id')
-        // Relate added groups
-        const addUsrGroups = _.difference(groups, usrGroups)
-        for (const grp of addUsrGroups) {
-          await usr.$relatedQuery('groups').relate(grp)
+        let usrGroupsRaw = await usr.$relatedQuery('groups')
+        // Normalize to array in case relatedQuery returns undefined/null or an object map in certain mocked contexts
+        if (!Array.isArray(usrGroupsRaw)) {
+          usrGroupsRaw = usrGroupsRaw ? Object.values(usrGroupsRaw) : []
         }
-        // Unrelate removed groups
+        const usrGroups = _.map(usrGroupsRaw, 'id')
+        // Determine added and removed groups
+        const addUsrGroups = _.difference(groups, usrGroups)
         const remUsrGroups = _.difference(usrGroups, groups)
-        for (const grp of remUsrGroups) {
-          await usr.$relatedQuery('groups').unrelate().where('groupId', grp)
-          // Handle user inactivity after unassign
-          const groupObj = usrGroupsRaw.find(g => g.id === grp)
+
+        // Relate added groups and send notification email(s)
+        for (const grpId of addUsrGroups) {
+          await usr.$relatedQuery('groups').relate(grpId)
+          try {
+            const groupObj = await WIKI.models.groups.query().findById(grpId)
+            if (groupObj) {
+              const sent = await userService.sendUserAddedToGroupEmail(usr, groupObj)
+              if (process.env.LOG_MAIL_DIAGNOSTICS === '1') {
+                WIKI.logger.info(`[mail][user.update] userId=${usr.id} email=${usr.email} addedToGroup=${groupObj.name} sent=${sent}`)
+              }
+            }
+          } catch (err) {
+            if (process.env.LOG_MAIL_DIAGNOSTICS === '1') {
+              WIKI.logger.warn(`[mail][user.update] failed to send group-add email userId=${usr.id} groupId=${grpId}: ${err.message}`)
+            }
+          }
+        }
+
+        // Unrelate removed groups
+        for (const grpId of remUsrGroups) {
+          await usr.$relatedQuery('groups').unrelate().where('groupId', grpId)
+          const groupObj = usrGroupsRaw.find(g => g.id === grpId)
           if (groupObj) {
             await handleUserSiteInactivityAfterUnassign(groupObj, usr)
           }
@@ -763,11 +805,28 @@ module.exports = class User extends Model {
   static async deleteUser(id, replaceId) {
     const usr = await WIKI.models.users.query().findById(id)
     if (usr) {
+      // Get all pages where user was author or creator before updating (for cache invalidation)
+      const affectedPages = await WIKI.models.pages.query()
+        .select('hash')
+        .where(builder => {
+          builder
+            .where({ authorId: id })
+            .orWhere({ creatorId: id })
+        })
+
       await WIKI.models.assets.query().patch({ authorId: replaceId }).where('authorId', id)
       await WIKI.models.comments.query().patch({ authorId: replaceId }).where('authorId', id)
       await WIKI.models.pageHistory.query().patch({ authorId: replaceId }).where('authorId', id)
       await WIKI.models.pages.query().patch({ authorId: replaceId }).where('authorId', id)
       await WIKI.models.pages.query().patch({ creatorId: replaceId }).where('creatorId', id)
+
+      // Invalidate cache for all affected pages to ensure updated user info is reflected
+      for (const page of affectedPages) {
+        await WIKI.models.pages.deletePageFromCache(page.hash)
+        if (WIKI.events && WIKI.events.outbound) {
+          WIKI.events.outbound.emit('deletePageFromCache', page.hash)
+        }
+      }
 
       await WIKI.models.userKeys.query().delete().where('userId', id)
       await WIKI.models.users.query().deleteById(id)
@@ -983,5 +1042,18 @@ module.exports = class User extends Model {
     await this.query().patch({
       failedAttempts: 0
     }).where({ id: userId })
+  }
+}
+
+module.exports = User
+
+// If you need to export Mutation for GraphQL, do it separately:
+module.exports.Mutation = {
+  async sendUserAddedToGroupEmail(_, { userId, groupId }) {
+    const user = await WIKI.models.users.query().findById(userId)
+    const group = await WIKI.models.groups.query().findById(groupId)
+    if (!user || !group) throw new Error('User or group not found')
+    await userService.sendUserAddedToGroupEmail(user, group)
+    return true
   }
 }

@@ -1,7 +1,4 @@
 const tsquery = require('pg-tsquery')()
-const stream = require('stream')
-const Promise = require('bluebird')
-const pipeline = Promise.promisify(stream.pipeline)
 
 /* global WIKI */
 
@@ -23,6 +20,9 @@ module.exports = {
   async init() {
     WIKI.logger.info(`(SEARCH/POSTGRES) Initializing...`)
 
+    // -> Ensure pg_trgm extension is available (required for similarity search)
+    await WIKI.models.knex.raw('CREATE EXTENSION IF NOT EXISTS pg_trgm')
+
     // -> Create Search Index
     const indexExists = await WIKI.models.knex.schema.hasTable('pagesVector')
     if (!indexExists) {
@@ -43,13 +43,15 @@ module.exports = {
     if (!wordsExists) {
       WIKI.logger.info(`(SEARCH/POSTGRES) Creating Words Suggestion Index...`)
       await WIKI.models.knex.raw(`
-        CREATE TABLE "pagesWords" AS SELECT word, pages_vector_a."siteId" FROM  "pagesVector" AS pages_vector_a, LATERAL ts_stat(
-          ' SELECT (to_tsvector(''simple'', "title") || to_tsvector(''simple'', "description") || to_tsvector(''simple'', "content")) as tsvector_word
-            FROM "pagesVector AS pages_vector_b"
-            WHERE pages_vector_b."siteId" = ' || quote_literal(pages_vector_a."siteId")
-            )
+        CREATE TABLE "pagesWords" AS
+        SELECT word, sites."siteId"
+        FROM (SELECT DISTINCT "siteId" FROM "pagesVector") AS sites,
+        LATERAL ts_stat(
+          'SELECT (to_tsvector(''simple'', "title") || to_tsvector(''simple'', "description") || to_tsvector(''simple'', "content")) AS tsvector_word
+           FROM "pagesVector"
+           WHERE "siteId" = ' || quote_literal(sites."siteId")
+        )
         `)
-      await WIKI.models.knex.raw('CREATE EXTENSION IF NOT EXISTS pg_trgm')
       await WIKI.models.knex.raw(`CREATE INDEX "pageWords_idx" ON "pagesWords" USING GIN (word gin_trgm_ops)`)
     }
 
@@ -65,9 +67,9 @@ module.exports = {
     try {
       let suggestions = []
       let qry = `
-        SELECT id, path, locale, title, description
+        SELECT ('p' || "pagesVector".id::text) as id, path, locale, title, description
         FROM "pagesVector", to_tsquery(?,?) query
-        WHERE (query @@ "tokens" OR path ILIKE ?)
+        WHERE (query @@ "tokens" OR path ILIKE ? OR title ILIKE ? OR description ILIKE ? OR content ILIKE ?)
           AND "siteId" = ?
       `
       let qryEnd = `ORDER BY ts_rank(tokens, query) DESC`
@@ -75,6 +77,9 @@ module.exports = {
         this.config.dictLanguage,
         tsquery(q),
         `%${q.toLowerCase()}%`,
+        `%${q}%`,
+        `%${q}%`,
+        `%${q}%`,
         opts.siteId
       ]
 
@@ -90,14 +95,50 @@ module.exports = {
         ${qry}
         ${qryEnd}
       `, qryParams)
+
+      // Search comment content (mentions in comments)
+      let commentQry = `
+        SELECT DISTINCT ('c' || p.id::text) as id, p.path, p."localeCode" as locale, p.title, p.description
+        FROM comments c
+        INNER JOIN pages p ON c."pageId" = p.id
+        WHERE c.content ILIKE ?
+          AND p."isPublished" = true
+          AND p."siteId" = ?
+      `
+      let commentParams = [`%${q}%`, opts.siteId]
+
+      if (opts.locale) {
+        commentQry += ` AND p."localeCode" = ?`
+        commentParams.push(opts.locale)
+      }
+      if (opts.path) {
+        commentQry += ` AND p.path ILIKE ?`
+        commentParams.push(`%${opts.path}`)
+      }
+
+      const commentResults = await WIKI.models.knex.raw(commentQry, commentParams)
+
+      // Mark sources and merge
+      results.rows.forEach(r => { r.source = 'page' })
+      const commentRows = commentResults.rows.map(r => ({ ...r, source: 'comment' }))
+
+      // Deduplicate by path+locale (prefer page results over comment results)
+      const pageKeys = new Set(results.rows.map(r => `${r.path}::${r.locale}`))
+      const uniqueComments = commentRows.filter(r => !pageKeys.has(`${r.path}::${r.locale}`))
+      const allResults = [...results.rows, ...uniqueComments]
+
       if (results.rows.length < 5) {
-        const suggestResults = await WIKI.models.knex.raw(`SELECT word, word <-> ? AS rank FROM "pagesWords" WHERE similarity(word, ?) > 0.2 AND "siteId" = ? ORDER BY rank LIMIT 5;`, [q, q, opts.siteId])
-        suggestions = suggestResults.rows.map(r => r.word)
+        try {
+          const suggestResults = await WIKI.models.knex.raw(`SELECT word, word <-> ? AS rank FROM "pagesWords" WHERE similarity(word, ?) > 0.2 AND "siteId" = ? ORDER BY rank LIMIT 5;`, [q, q, opts.siteId])
+          suggestions = [...new Set(suggestResults.rows.map(r => r.word))]
+        } catch (err) {
+          WIKI.logger.warn(`Search Engine Suggestion Error (pg_trgm extension may be missing): ${err.message}`)
+        }
       }
       return {
-        results: results.rows,
+        results: allResults,
         suggestions,
-        totalHits: results.rows.length,
+        totalHits: allResults.length,
         siteId: opts.siteId
       }
     } catch (err) {
@@ -112,10 +153,10 @@ module.exports = {
    */
   async created(page) {
     await WIKI.models.knex.raw(`
-      INSERT INTO "pagesVector" (path, locale, title, description, "tokens", "siteId") VALUES (
-        ?, ?, ?, ?, (setweight(to_tsvector('${this.config.dictLanguage}', ?), 'A') || setweight(to_tsvector('${this.config.dictLanguage}', ?), 'B') || setweight(to_tsvector('${this.config.dictLanguage}', ?), 'C')), ?
+      INSERT INTO "pagesVector" (path, locale, title, description, "tokens", content, "siteId") VALUES (
+        ?, ?, ?, ?, (setweight(to_tsvector('${this.config.dictLanguage}', ?), 'A') || setweight(to_tsvector('${this.config.dictLanguage}', ?), 'B') || setweight(to_tsvector('${this.config.dictLanguage}', ?), 'C')), ?, ?
       )
-    `, [page.path, page.localeCode, page.title, page.description, page.title, page.description, page.safeContent, page.siteId])
+    `, [page.path, page.localeCode, page.title, page.description, page.title, page.description, page.safeContent, page.safeContent, page.siteId])
   },
   /**
    * UPDATE
@@ -127,11 +168,12 @@ module.exports = {
       UPDATE "pagesVector" SET
         title = ?,
         description = ?,
+        content = ?,
         tokens = (setweight(to_tsvector('${this.config.dictLanguage}', ?), 'A') ||
         setweight(to_tsvector('${this.config.dictLanguage}', ?), 'B') ||
         setweight(to_tsvector('${this.config.dictLanguage}', ?), 'C'))
       WHERE path = ? AND locale = ? AND "siteId" = ?
-    `, [page.title, page.description, page.title, page.description, page.safeContent, page.path, page.localeCode, page.siteId])
+    `, [page.title, page.description, page.safeContent, page.title, page.description, page.safeContent, page.path, page.localeCode, page.siteId])
   },
   /**
    * DELETE
@@ -169,34 +211,53 @@ module.exports = {
     await WIKI.models.knex('pagesVector').truncate()
     await WIKI.models.knex('pagesWords').truncate()
 
-    await pipeline(
-      WIKI.models.knex.column('path', 'localeCode', 'title', 'description', 'siteId', 'render').select().from('pages').where({
-        isPublished: true,
-        isPrivate: false
-      }).stream(),
-      new stream.Transform({
-        objectMode: true,
-        transform: async (page, enc, cb) => {
+    const batchSize = 50
+    let offset = 0
+    let totalIndexed = 0
+
+    while (true) {
+      const pages = await WIKI.models.knex
+        .column('path', 'localeCode', 'title', 'description', 'siteId', 'render')
+        .select()
+        .from('pages')
+        .where({ isPublished: true, isPrivate: false })
+        .limit(batchSize)
+        .offset(offset)
+
+      if (pages.length === 0) break
+
+      WIKI.logger.info(`(SEARCH/POSTGRES) Indexing pages ${offset + 1} – ${offset + pages.length}...`)
+
+      for (const page of pages) {
+        try {
           const content = WIKI.models.pages.cleanHTML(page.render)
           await WIKI.models.knex.raw(`
             INSERT INTO "pagesVector" (path, locale, title, description, "tokens", content, "siteId") VALUES (
               ?, ?, ?, ?, (setweight(to_tsvector('${this.config.dictLanguage}', ?), 'A') || setweight(to_tsvector('${this.config.dictLanguage}', ?), 'B') || setweight(to_tsvector('${this.config.dictLanguage}', ?), 'C')), ?, ?
             )
           `, [page.path, page.localeCode, page.title, page.description, page.title, page.description, content, content, page.siteId])
-          cb()
+          totalIndexed++
+        } catch (err) {
+          WIKI.logger.warn(`(SEARCH/POSTGRES) Failed to index page [${page.localeCode}] ${page.path}: ${err.message}`)
+          WIKI.logger.warn(err)
         }
-      })
-    )
+      }
+
+      offset += batchSize
+      if (pages.length < batchSize) break
+    }
+
+    WIKI.logger.info(`(SEARCH/POSTGRES) Indexed ${totalIndexed} pages. Building words index...`)
 
     await WIKI.models.knex.raw(`
       INSERT INTO "pagesWords" (word, "siteId")
-            SELECT word, pages_vector_a."siteId"
-            FROM "pagesVector" AS pages_vector_a,
-            LATERAL ts_stat(
-              'SELECT (to_tsvector(''simple'', "title") || to_tsvector(''simple'', "description") || to_tsvector(''simple'', "content")) as tsvector_word
-              FROM "pagesVector" AS pages_vector_b
-              WHERE pages_vector_b."siteId" = ' || quote_literal(pages_vector_a."siteId")
-            )
+      SELECT word, sites."siteId"
+      FROM (SELECT DISTINCT "siteId" FROM "pagesVector") AS sites,
+      LATERAL ts_stat(
+        'SELECT (to_tsvector(''simple'', "title") || to_tsvector(''simple'', "description") || to_tsvector(''simple'', "content")) AS tsvector_word
+        FROM "pagesVector"
+        WHERE "siteId" = ' || quote_literal(sites."siteId")
+      )
       `)
 
     WIKI.logger.info(`(SEARCH/POSTGRES) Index rebuilt successfully.`)

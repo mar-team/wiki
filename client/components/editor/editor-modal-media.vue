@@ -6,35 +6,65 @@
           v-card.radius-7.animated.fadeInLeft.wait-p1s(:light='!$vuetify.theme.dark', :dark='$vuetify.theme.dark')
             v-card-text
               .d-flex
-                v-toolbar.radius-7(:color='$vuetify.theme.dark ? `teal` : `teal lighten-5`', dense, flat, height='44')
-                  .body-2(:class='$vuetify.theme.dark ? `white--text` : `teal--text`') {{$t('editor:assets.title')}}
+                v-toolbar.radius-7(:color='$vuetify.theme.dark ? colors.surfaceDark.primarySapHeavy : colors.surfaceLight.secondaryBlueHeavy', dense, flat, height='44')
+                  .body-2(:style='`color: ${colors.textLight.inverse};`') {{$t('editor:assets.title')}}
                   v-spacer
                   v-btn(text, icon, @click='refresh')
-                    v-icon(:color='$vuetify.theme.dark ? `white` : `teal`') mdi-refresh
+                    v-icon(:color='colors.textLight.inverse') mdi-refresh
                 v-dialog(v-model='newFolderDialog', max-width='550')
                   template(v-slot:activator='{ on }')
-                    v-btn.ml-3.my-0.mr-0.radius-7(outlined, large, color='teal', :icon='$vuetify.breakpoint.xsOnly', v-on='on')
-                      v-icon(:left='$vuetify.breakpoint.mdAndUp') mdi-plus
-                      span.hidden-sm-and-down(:class='$vuetify.theme.dark ? `teal--text text--lighten-3` : ``') {{$t('editor:assets.newFolder')}}
+                    v-btn.ml-3.my-0.mr-0.radius-7(outlined, large, :color='$vuetify.theme.dark ? colors.surfaceDark.secondarySapHeavy : colors.surfaceLight.secondaryBlueHeavy', :dark='$vuetify.theme.dark', :icon='$vuetify.breakpoint.xsOnly', v-on='on', :style='$vuetify.theme.dark ? `color: white !important;` : ``')
+                      v-icon(:left='$vuetify.breakpoint.mdAndUp', :style='$vuetify.theme.dark ? `color: white !important;` : ``') mdi-plus
+                      span.hidden-sm-and-down {{$t('editor:assets.newFolder')}}
                   v-card
-                    .dialog-header.is-short.subtitle-1 {{$t('editor:assets.newFolder')}}
+                    .dialog-header.is-short(:style='`background-color: ${colors.blue[500]} !important;`')
+                      v-icon.mr-2(color='white') mdi-folder-plus-outline
+                      span(:style='`color: ${colors.textLight.inverse};`') {{$t('editor:assets.newFolder')}}
                     v-card-text.pt-5
-                      v-text-field.md2(
+                      .body-2.mb-3(:style='`color: ${$vuetify.theme.dark ? colors.textDark.primary : colors.textLight.primary};`') {{$t(`editor:assets.folderName`)}}
+                      v-text-field(
                         outlined
-                        prepend-icon='mdi-folder-outline'
                         v-model='newFolderName'
-                        :label='$t(`editor:assets.folderName`)'
-                        counter='255'
+                        :placeholder='$t(`editor:assets.folderName`)'
+                        :counter='255'
                         @keyup.enter='createFolder'
                         @keyup.esc='newFolderDialog = false'
                         ref='folderNameIpt'
                         )
-                      i18next.caption.grey--text.text--darken-1.pl-5(path='editor:assets.folderNameNamingRules', tag='div')
-                        a(place='namingRules', href='https://docs-beta.requarks.io/guide/assets#naming-restrictions', target='_blank') {{$t('editor:assets.folderNameNamingRulesLink')}}
+                      .caption.mt-2(:style='`color: ${$vuetify.theme.dark ? colors.textDark.tertiary : colors.textLight.tertiary};`')
+                        i18next(path='editor:assets.folderNameNamingRules', tag='span')
+                          a(place='namingRules', href='https://docs-beta.requarks.io/guide/assets#naming-restrictions', target='_blank', :style='`color: ${colors.blue[500]};`') {{$t('editor:assets.folderNameNamingRulesLink')}}
                     v-card-chin
                       v-spacer
-                      v-btn(text, @click='newFolderDialog = false') {{$t('common:actions.cancel')}}
-                      v-btn.px-3(color='primary', @click='createFolder', :disabled='!isFolderNameValid', :loading='newFolderLoading') {{$t('common:actions.create')}}
+                      v-btn.btn-rounded(
+                        outlined
+                        rounded
+                        :color='$vuetify.theme.dark ? colors.surfaceDark.inverse : colors.surfaceLight.primarySapHeavy'
+                        @click='newFolderDialog = false'
+                        ) {{$t('common:actions.cancel')}}
+                      v-btn.btn-rounded(
+                        rounded
+                        dark
+                        :color='colors.blue[500]'
+                        @click='createFolder'
+                        :disabled='!isFolderNameValid'
+                        :loading='newFolderLoading'
+                        )
+                        v-icon(left, color='white') mdi-plus
+                        span.text-none.text-uppercase(:style='`color: ${colors.textLight.inverse};`') {{$t('common:actions.create')}}
+              .pa-2.d-flex.align-center.mt-3(:class='$vuetify.theme.dark ? `grey darken-3-d5` : `grey lighten-3`')
+                v-text-field(
+                  solo
+                  flat
+                  v-model='search'
+                  prepend-inner-icon='mdi-file-search-outline'
+                  label='Search Assets (min 3 chars)...'
+                  hide-details
+                  dense
+                  clearable
+                  style='max-width: 400px;'
+                  )
+                
               v-toolbar(flat, dense, :color='$vuetify.theme.dark ? `grey darken-3` : `white`')
                 template(v-if='folderTree.length > 0')
                   .body-2
@@ -53,9 +83,12 @@
               v-data-table(
                 :items='assets'
                 :headers='headers'
+                :search='debouncedSearch'
+                :custom-filter='filterFilename'
                 :page.sync='pagination'
                 :items-per-page='15'
                 :loading='loading'
+                @page-count='pageCount = $event'
                 must-sort,
                 sort-by='ID',
                 sort-desc,
@@ -66,11 +99,11 @@
                   tr.is-clickable(
                     @click.left='currentFileId = props.item.id'
                     @click.right.prevent=''
-                    :class='currentFileId === props.item.id ? ($vuetify.theme.dark ? `grey darken-3-d5` : `teal lighten-5`) : ``'
+                    :class='currentFileId === props.item.id ? ($vuetify.theme.dark ? `grey darken-3-d5` : `blue lighten-5`) : ``'
                     )
                     td.caption(v-if='$vuetify.breakpoint.smAndUp') {{ props.item.id }}
                     td
-                      .body-2: strong(:class='currentFileId === props.item.id ? `teal--text` : ``') {{ props.item.filename }}
+                      .body-2: strong(:class='currentFileId === props.item.id ? `blue--text text--darken-2` : ``') {{ props.item.filename }}
                       .caption.grey--text {{ props.item.description }}
                     td.text-xs-center(v-if='$vuetify.breakpoint.lgAndUp')
                       v-chip.ma-0(x-small, :color='$vuetify.theme.dark ? `grey darken-4` : `grey lighten-4`')
@@ -83,7 +116,7 @@
                           v-btn(icon, v-on='on', tile, small, @click.left='currentFileId = props.item.id')
                             v-icon(color='grey darken-2') mdi-dots-horizontal
                         v-list(nav, style='border-top: 5px solid #444;')
-                          v-list-item(@click='', disabled)
+                          v-list-item(@click='openProperties(props.item)', :disabled='!props.item')
                             v-list-item-avatar(size='24')
                               v-icon(color='teal') mdi-text-short
                             v-list-item-content {{$t('common:actions.properties')}}
@@ -113,16 +146,18 @@
                               v-icon(color='red') mdi-file-hidden
                             v-list-item-content {{$t('common:actions.delete')}}
                 template(slot='no-data')
-                  v-alert.mt-3.radius-7(icon='mdi-folder-open-outline', :value='true', outlined, color='teal') {{$t('editor:assets.folderEmpty')}}
-              .text-xs-center.py-2(v-if='this.pageTotal > 1')
-                v-pagination(v-model='pagination', :length='pageTotal', color='teal')
+                  v-alert.mt-3.radius-7(icon='mdi-folder-open-outline', :value='true', outlined, :color='$vuetify.theme.dark ? colors.surfaceDark.secondarySapHeavy : colors.surfaceLight.secondaryBlueHeavy') {{$t('editor:assets.folderEmpty')}}
+              v-card-chin(v-if='pageCount > 1')
+                v-spacer
+                v-pagination(v-model='pagination', :length='pageCount', :color='$vuetify.theme.dark ? colors.surfaceDark.secondarySapHeavy : colors.surfaceLight.secondaryBlueHeavy')
+                v-spacer
               .d-flex.mt-3
                 v-toolbar.radius-7(flat, :color='$vuetify.theme.dark ? `grey darken-2` : `grey lighten-4`', dense, height='44')
                   .body-2(:class='$vuetify.theme.dark ? `grey--text text--lighten-1` : `grey--text text--darken-1`') {{$t('editor:assets.fileCount', { count: assets.length })}}
-                v-btn.ml-3.mr-0.my-0.radius-7(color='red darken-2', large, @click='cancel', dark)
+                v-btn.ml-3.mr-0.my-0.radius-7(:color='colors.red[450]', large, @click='cancel', dark)
                   v-icon(left) mdi-close
                   span {{$t('common:actions.cancel')}}
-                v-btn.ml-3.mr-0.my-0.radius-7(color='teal', large, @click='insert', :disabled='!currentFileId', :dark='currentFileId !== null')
+                v-btn.ml-3.mr-0.my-0.radius-7(:color='$vuetify.theme.dark ? colors.surfaceDark.secondarySapHeavy : colors.surfaceLight.secondaryBlueHeavy', large, @click='insert', :disabled='!currentFileId', :dark='currentFileId !== null')
                   v-icon(left) mdi-playlist-plus
                   span {{$t('common:actions.insert')}}
 
@@ -130,12 +165,12 @@
           v-card.radius-7.animated.fadeInRight.wait-p3s(:light='!$vuetify.theme.dark', :dark='$vuetify.theme.dark')
             v-card-text
               .d-flex
-                v-toolbar.radius-7(:color='$vuetify.theme.dark ? `teal` : `teal lighten-5`', dense, flat, height='44')
-                  v-icon.mr-3(:color='$vuetify.theme.dark ? `white` : `teal`') mdi-cloud-upload
-                  .body-2(:class='$vuetify.theme.dark ? `white--text` : `teal--text`') {{$t('editor:assets.uploadAssets')}}
-                v-btn.my-0.ml-3.mr-0.radius-7(outlined, large, color='teal', @click='browse', v-if='$vuetify.breakpoint.mdAndUp')
-                  v-icon(left) mdi-plus-box-multiple
-                  span(:class='$vuetify.theme.dark ? `teal--text text--lighten-3` : ``') {{$t('common:actions.browse')}}
+                v-toolbar.radius-7(:color='$vuetify.theme.dark ? colors.surfaceDark.primarySapHeavy : colors.surfaceLight.secondaryBlueHeavy', dense, flat, height='44')
+                  v-icon.mr-3(:color='colors.textLight.inverse') mdi-cloud-upload
+                  .body-2(:style='`color: ${colors.textLight.inverse};`') {{$t('editor:assets.uploadAssets')}}
+                v-btn.my-0.ml-3.mr-0.radius-7(outlined, large, :color='$vuetify.theme.dark ? colors.surfaceDark.secondarySapHeavy : colors.surfaceLight.secondaryBlueHeavy', :dark='$vuetify.theme.dark', @click='browse', v-if='$vuetify.breakpoint.mdAndUp', :style='$vuetify.theme.dark ? `color: white !important;` : ``')
+                  v-icon(left, :style='$vuetify.theme.dark ? `color: white !important;` : ``') mdi-plus-box-multiple
+                  span {{$t('common:actions.browse')}}
               file-pond.mt-3(
                 name='mediaUpload'
                 ref='pond'
@@ -152,19 +187,19 @@
             v-card-actions.pa-3
               .caption.grey--text.text-darken-2 Max 10 files, 5 MB each
               v-spacer
-              v-btn.px-4(color='teal', dark, @click='upload') {{$t('common:actions.upload')}}
+              v-btn.px-4(:color='$vuetify.theme.dark ? colors.surfaceDark.secondarySapHeavy : colors.surfaceLight.secondaryBlueHeavy', dark, @click='upload') {{$t('common:actions.upload')}}
 
           v-card.mt-3.radius-7.animated.fadeInRight.wait-p4s(:light='!$vuetify.theme.dark', :dark='$vuetify.theme.dark')
             v-card-text.pb-0
-              v-toolbar.radius-7(:color='$vuetify.theme.dark ? `teal` : `teal lighten-5`', dense, flat)
-                v-icon.mr-3(:color='$vuetify.theme.dark ? `white` : `teal`') mdi-cloud-download
-                .body-2(:class='$vuetify.theme.dark ? `white--text` : `teal--text`') {{$t('editor:assets.fetchImage')}}
+              v-toolbar.radius-7(:color='$vuetify.theme.dark ? colors.surfaceDark.primarySapHeavy : colors.surfaceLight.secondaryBlueHeavy', dense, flat)
+                v-icon.mr-3(:color='colors.textLight.inverse') mdi-cloud-download
+                .body-2(:style='`color: ${colors.textLight.inverse};`') {{$t('editor:assets.fetchImage')}}
                 v-spacer
-                v-chip(label, color='white', small).teal--text coming soon
+                v-chip(label, :color='colors.yellow[300]', small, light) coming soon
               v-text-field.mt-3(
                 v-model='remoteImageUrl'
                 outlined
-                color='teal'
+                :color='$vuetify.theme.dark ? colors.surfaceDark.secondarySapHeavy : colors.surfaceLight.secondaryBlueHeavy'
                 single-line
                 placeholder='https://example.com/image.jpg'
               )
@@ -172,19 +207,19 @@
             v-card-actions.pa-3
               .caption.grey--text.text-darken-2 Max 5 MB
               v-spacer
-              v-btn.px-4(color='teal', disabled) {{$t('common:actions.fetch')}}
+              v-btn.px-4(:color='$vuetify.theme.dark ? colors.surfaceDark.secondarySapHeavy : colors.surfaceLight.secondaryBlueHeavy', disabled) {{$t('common:actions.fetch')}}
 
           v-card.mt-3.radius-7.animated.fadeInRight.wait-p4s(:light='!$vuetify.theme.dark', :dark='$vuetify.theme.dark')
             v-card-text.pb-0
-              v-toolbar.radius-7(:color='$vuetify.theme.dark ? `teal` : `teal lighten-5`', dense, flat)
-                v-icon.mr-3(:color='$vuetify.theme.dark ? `white` : `teal`') mdi-format-align-top
-                .body-2(:class='$vuetify.theme.dark ? `white--text` : `teal--text`') {{$t('editor:assets.imageAlign')}}
+              v-toolbar.radius-7(:color='$vuetify.theme.dark ? colors.surfaceDark.primarySapHeavy : colors.surfaceLight.secondaryBlueHeavy', dense, flat)
+                v-icon.mr-3(:color='colors.textLight.inverse') mdi-format-align-top
+                .body-2(:style='`color: ${colors.textLight.inverse};`') {{$t('editor:assets.imageAlign')}}
               v-select.mt-3(
                 v-model='imageAlignment'
                 :items='imageAlignments'
                 outlined
                 single-line
-                color='teal'
+                :color='$vuetify.theme.dark ? colors.surfaceDark.secondarySapHeavy : colors.surfaceLight.secondaryBlueHeavy'
                 placeholder='None'
               )
 
@@ -192,11 +227,11 @@
 
     v-dialog(v-model='renameDialog', max-width='550', persistent)
       v-card
-        .dialog-header.is-short.is-orange
-          v-icon.mr-2(color='white') mdi-keyboard
-          span {{$t('editor:assets.renameAsset')}}
+        .dialog-header.is-short(:style='`background-color: ${colors.blue[500]} !important;`')
+          v-icon.mr-2(color='white') mdi-form-textbox
+          span(:style='`color: ${colors.textLight.inverse};`') {{$t('editor:assets.renameAsset')}}
         v-card-text.pt-5
-          .body-2 {{$t('editor:assets.renameAssetSubtitle')}}
+          .body-2(:style='`color: ${$vuetify.theme.dark ? colors.textDark.primary : colors.textLight.primary};`') {{$t('editor:assets.renameAssetSubtitle')}}
           v-text-field(
             outlined
             single-line
@@ -207,24 +242,99 @@
           )
         v-card-chin
           v-spacer
-          v-btn(text, @click='renameDialog = false', :disabled='renameAssetLoading') {{$t('common:actions.cancel')}}
-          v-btn.px-3(color='orange darken-3', @click='renameAsset', :loading='renameAssetLoading').white--text {{$t('common:actions.rename')}}
+          v-btn.btn-rounded(
+            outlined
+            rounded
+            :color='$vuetify.theme.dark ? colors.surfaceDark.inverse : colors.surfaceLight.primarySapHeavy'
+            @click='renameDialog = false'
+            :disabled='renameAssetLoading'
+            ) {{$t('common:actions.cancel')}}
+          v-btn.btn-rounded(
+            rounded
+            dark
+            :color='colors.blue[500]'
+            @click='renameAsset'
+            :loading='renameAssetLoading'
+            )
+            v-icon(left, color='white') mdi-content-save
+            span.text-none.text-uppercase(:style='`color: ${colors.textLight.inverse};`') {{$t('common:actions.rename')}}
 
     //- DELETE DIALOG
 
     v-dialog(v-model='deleteDialog', max-width='550', persistent)
       v-card
-        .dialog-header.is-short.is-red
-          v-icon.mr-2(color='white') mdi-trash-can-outline
-          span {{$t('editor:assets.deleteAsset')}}
+        .dialog-header.is-short(:style='`background-color: ${colors.red[450]} !important;`')
+          v-icon.mr-2(color='white') mdi-file-document-box-remove-outline
+          span(:style='`color: ${colors.textLight.inverse};`') {{$t('editor:assets.deleteAsset')}}
         v-card-text.pt-5
-          .body-2 {{$t('editor:assets.deleteAssetConfirm')}}
-          .body-2.red--text.text--darken-2 {{currentAsset.filename}}?
-          .caption.mt-3 {{$t('editor:assets.deleteAssetWarn')}}
+          i18next.body-2(path='editor:assets.deleteAssetConfirm', tag='div', :style='`color: ${$vuetify.theme.dark ? colors.textDark.primary : colors.textLight.primary};`')
+            span(:style='`color: ${$vuetify.theme.dark ? colors.textDark.secondary : colors.textLight.secondary};`', place='filename') {{currentAsset.filename}}
+          .caption.mt-3(:style='`color: ${$vuetify.theme.dark ? colors.textDark.tertiary : colors.textLight.tertiary};`') {{$t('editor:assets.deleteAssetWarn')}}
         v-card-chin
           v-spacer
-          v-btn(text, @click='deleteDialog = false', :disabled='deleteAssetLoading') {{$t('common:actions.cancel')}}
-          v-btn.px-3(color='red darken-2', @click='deleteAsset', :loading='deleteAssetLoading').white--text {{$t('common:actions.delete')}}
+          v-btn.btn-rounded(
+            outlined
+            rounded
+            :color='$vuetify.theme.dark ? colors.surfaceDark.inverse : colors.surfaceLight.primarySapHeavy'
+            @click='deleteDialog = false'
+            :disabled='deleteAssetLoading'
+            ) {{$t('common:actions.cancel')}}
+          v-btn.btn-rounded(
+            rounded
+            dark
+            :color='colors.red[450]'
+            @click='deleteAsset'
+            :loading='deleteAssetLoading'
+            )
+            v-icon(left, color='white') mdi-delete-forever
+            span.text-none.text-uppercase(:style='`color: ${colors.textLight.inverse};`') {{$t('common:actions.delete')}}
+
+    //- PROPERTIES DIALOG
+
+    v-dialog(v-model='propertiesDialog', max-width='600')
+      v-card
+        .dialog-header.is-short(:style='`background-color: ${colors.sapphire[400]} !important;`')
+          v-icon.mr-2(color='white') mdi-information-outline
+          span(:style='`color: ${colors.textLight.inverse};`') {{$t('editor:assets.fileProperties')}}
+        v-card-text.pt-5
+          template(v-if='selectedPropertiesAsset')
+            .body-2.mb-2
+              strong {{$t('editor:assets.headerFilename')}}:
+              span.ml-1 {{ selectedPropertiesAsset.filename }}
+            .caption.grey--text.text--darken-1.mb-4 {{ selectedPropertiesAsset.description ? selectedPropertiesAsset.description : $t('editor:assets.noDescription') }}
+            v-divider.mb-4
+            .properties-grid
+              .prop-row
+                .prop-label Kind:
+                .prop-value {{ selectedPropertiesAsset.kind }}
+              .prop-row
+                .prop-label Type:
+                .prop-value {{ displayExt(selectedPropertiesAsset) }}
+              .prop-row
+                .prop-label Size:
+                .prop-value {{ selectedPropertiesAsset.fileSize | prettyBytes }}
+              .prop-row
+                .prop-label Added:
+                .prop-value {{ selectedPropertiesAsset.createdAt | moment('LLL') }}
+              .prop-row(v-if='folderTree && folderTree.length')
+                .prop-label Path:
+                .prop-value /{{ folderTree.map(f => f.slug).join('/') }}
+              .prop-row
+                .prop-label ID:
+                .prop-value {{ selectedPropertiesAsset.id }}
+            template(v-if='selectedPropertiesAsset.kind === "IMAGE"')
+              v-divider.mb-4
+              .body-2.mb-2 Image Details
+              img(:src='imagePublicPath(selectedPropertiesAsset)', style='max-width:100%;height:auto;border:1px solid #ddd;padding:4px;border-radius:4px;')
+          template(v-else)
+            .caption.grey--text No asset selected.
+        v-card-chin
+          v-spacer
+          v-btn.btn-rounded(
+            rounded
+            :color='$vuetify.theme.dark ? colors.surfaceDark.inverse : colors.surfaceLight.primarySapHeavy'
+            @click='propertiesDialog = false'
+            ) {{$t('common:actions.close')}}
 </template>
 
 <script>
@@ -233,9 +343,11 @@ import { get, sync } from 'vuex-pathify'
 import Cookies from 'js-cookie'
 import vueFilePond from 'vue-filepond'
 import 'filepond/dist/filepond.min.css'
+import colors from '@/themes/default/js/color-scheme'
 
 import listAssetQuery from 'gql/editor/editor-media-query-list.gql'
 import listFolderAssetQuery from 'gql/editor/editor-media-query-folder-list.gql'
+import siteByPathQuery from 'gql/admin/sites/sites-query-by-path.gql'
 import createAssetFolderMutation from 'gql/editor/editor-media-mutation-folder-create.gql'
 import renameAssetMutation from 'gql/editor/editor-media-mutation-asset-rename.gql'
 import deleteAssetMutation from 'gql/editor/editor-media-mutation-asset-delete.gql'
@@ -260,6 +372,7 @@ export default {
       files: [],
       assets: [],
       pagination: 1,
+      pageCount: 0,
       remoteImageUrl: '',
       imageAlignments: [
         { text: 'None', value: '' },
@@ -278,7 +391,13 @@ export default {
       renameAssetName: '',
       renameAssetLoading: false,
       deleteDialog: false,
-      deleteAssetLoading: false
+      deleteAssetLoading: false,
+      siteId: '',
+      propertiesDialog: false,
+      selectedPropertiesAsset: null,
+      search: '',
+      debouncedSearch: '',
+      colors
     }
   },
   computed: {
@@ -291,15 +410,7 @@ export default {
     folderTree: get('editor/media@folderTree'),
     currentFolderId: sync('editor/media@currentFolderId'),
     currentFileId: sync('editor/media@currentFileId'),
-    siteId: get('page/siteId'),
     sitePath: get('page/sitePath'),
-    pageTotal () {
-      if (!this.assets) {
-        return 0
-      }
-
-      return Math.ceil(this.assets.length / 15)
-    },
     headers() {
       return _.compact([
         this.$vuetify.breakpoint.smAndUp && { text: this.$t('editor:assets.headerId'), value: 'id', width: 80 },
@@ -335,7 +446,10 @@ export default {
           this.$refs.folderNameIpt.focus()
         })
       }
-    }
+    },
+    search: _.debounce(function(newValue) {
+      this.debouncedSearch = newValue
+    }, 300)
   },
   filters: {
     prettyBytes(num) {
@@ -362,6 +476,33 @@ export default {
     }
   },
   methods: {
+    filterFilename(_value, search, item) {
+      const term = (search ?? '').trim().toLowerCase()
+      if (term.length < 3) return true
+
+      const name = String(item?.filename ?? '').toLowerCase()
+      return name ? name.includes(term) : false
+    },
+    async getSiteId() {
+      let siteId = this.$store.get('page/siteId')
+
+      if (!siteId) {
+        try {
+          const siteResponse = await this.$apollo.query({
+            query: siteByPathQuery,
+            variables: {
+              path: 'default',
+              exact: true
+            }
+          })
+          siteId = siteResponse.data.siteByPath?.id || ''
+        } catch (err) {
+          console.error('Failed to fetch site by path:', err)
+        }
+      }
+
+      return siteId
+    },
     async refresh() {
       await this.$apollo.queries.assets.refetch()
       this.$store.commit('showNotification', {
@@ -373,6 +514,7 @@ export default {
     insert () {
       const asset = _.find(this.assets, ['id', this.currentFileId])
       const assetPath = this.folderTree.map(f => f.slug).join('/')
+      // eslint-disable-next-line vue/custom-event-name-casing
       this.$root.$emit('editorInsert', {
         kind: asset.kind,
         path: this.currentFolderId > 0 ? `/${this.sitePath}/assets/${assetPath}/${asset.filename}` : `/${this.sitePath}/assets/${asset.filename}`,
@@ -519,6 +661,19 @@ export default {
     },
     cancel () {
       this.activeModal = ''
+    },
+    openProperties(asset) {
+      this.selectedPropertiesAsset = asset || this.currentAsset
+      this.propertiesDialog = true
+    },
+    imagePublicPath(asset) {
+      if (!asset) return ''
+      const assetPath = this.folderTree.map(f => f.slug).join('/')
+      return this.currentFolderId > 0 ? `/${this.sitePath}/assets/${assetPath}/${asset.filename}` : `/${this.sitePath}/assets/${asset.filename}`
+    },
+    displayExt(asset) {
+      if (!asset || !asset.ext) return ''
+      return asset.ext.replace(/^\./, '').toUpperCase()
     }
   },
   apollo: {
@@ -529,6 +684,10 @@ export default {
           parentFolderId: this.currentFolderId,
           siteId: this.siteId
         }
+      },
+      skip() {
+        // Do not run the query if siteId is not available
+        return !this.siteId
       },
       fetchPolicy: 'network-only',
       update: (data) => data.folders,
@@ -545,6 +704,9 @@ export default {
           siteId: this.siteId
         }
       },
+      skip() {
+        return !this.siteId
+      },
       throttle: 1000,
       fetchPolicy: 'network-only',
       update: (data) => data.listAssets,
@@ -553,6 +715,9 @@ export default {
         this.$store.commit(`loading${isLoading ? 'Start' : 'Stop'}`, 'editor-media-list-refresh')
       }
     }
+  },
+  async mounted() {
+    this.siteId = await this.getSiteId()
   }
 }
 </script>
@@ -565,7 +730,7 @@ export default {
   z-index: 10;
   width: calc(100vw - 64px - 17px);
   height: calc(100vh - 112px - 24px);
-  background-color: rgba(darken(mc('grey', '900'), 3%), .9) !important;
+  background-color: rgba(mc('neutral', '900'), .9) !important;
   overflow: auto;
 
   @include until($tablet) {

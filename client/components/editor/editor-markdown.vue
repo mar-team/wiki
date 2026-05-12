@@ -1,23 +1,29 @@
 <template lang='pug'>
   .editor-markdown
-    v-toolbar.editor-markdown-toolbar(dense, color='primary', dark, flat, style='overflow-x: hidden;')
+    v-toolbar.editor-markdown-toolbar(
+      :color='colors.surfaceDark.primaryBlueHeavy'
+      style='overflow-x: hidden;'
+      dense
+      dark
+      flat
+      )
       template(v-if='isModalShown')
         v-spacer
-        v-btn.animated.fadeInRight(text, @click='closeAllModal')
+        v-btn.animated.fadeInRight(outlined, @click='closeAllModal')
           v-icon(left) mdi-arrow-left-circle
           span {{$t('editor:backToEditor')}}
       template(v-else)
-        v-tooltip(bottom, color='primary')
+        v-tooltip(bottom, :color='colors.surfaceDark.infoHeavy')
           template(v-slot:activator='{ on }')
             v-btn.animated.fadeIn(icon, tile, v-on='on', @click='toggleMarkup({ start: `**` })').mx-0
               v-icon mdi-format-bold
           span {{$t('editor:markup.bold')}}
-        v-tooltip(bottom, color='primary')
+        v-tooltip(bottom, :color='colors.surfaceDark.infoHeavy')
           template(v-slot:activator='{ on }')
             v-btn.animated.fadeIn.wait-p1s(icon, tile, v-on='on', @click='toggleMarkup({ start: `*` })').mx-0
               v-icon mdi-format-italic
           span {{$t('editor:markup.italic')}}
-        v-tooltip(bottom, color='primary')
+        v-tooltip(bottom, :color='colors.surfaceDark.infoHeavy')
           template(v-slot:activator='{ on }')
             v-btn.animated.fadeIn.wait-p2s(icon, tile, v-on='on', @click='toggleMarkup({ start: `~~` })').mx-0
               v-icon mdi-format-strikethrough
@@ -33,12 +39,12 @@
                   v-icon(:size='24 - (idx - 1) * 2') mdi-format-header-{{n}}
                 v-list-item-title {{$t('editor:markup.heading', { level: n })}}
               v-divider(v-if='idx < 5')
-        v-tooltip(bottom, color='primary')
+        v-tooltip(bottom, :color='colors.surfaceDark.infoHeavy')
           template(v-slot:activator='{ on }')
             v-btn.animated.fadeIn.wait-p4s(icon, tile, v-on='on', @click='toggleMarkup({ start: `~` })').mx-0
               v-icon mdi-format-subscript
           span {{$t('editor:markup.subscript')}}
-        v-tooltip(bottom, color='primary')
+        v-tooltip(bottom, :color='colors.surfaceDark.infoHeavy')
           template(v-slot:activator='{ on }')
             v-btn.animated.fadeIn.wait-p5s(icon, tile, v-on='on', @click='toggleMarkup({ start: `^` })').mx-0
               v-icon mdi-format-superscript
@@ -73,68 +79,73 @@
                 v-icon(color='error') mdi-alpha-e-box-outline
               v-list-item-title {{$t('editor:markup.blockquoteError')}}
             v-divider
-        v-tooltip(bottom, color='primary')
+        v-tooltip(bottom, :color='colors.surfaceDark.infoHeavy')
           template(v-slot:activator='{ on }')
             v-btn.animated.fadeIn.wait-p7s(icon, tile, v-on='on', @click='insertBeforeEachLine({ content: `- `})').mx-0
               v-icon mdi-format-list-bulleted
           span {{$t('editor:markup.unorderedList')}}
-        v-tooltip(bottom, color='primary')
+        v-tooltip(bottom, :color='colors.surfaceDark.infoHeavy')
           template(v-slot:activator='{ on }')
             v-btn.animated.fadeIn.wait-p8s(icon, tile, v-on='on', @click='insertBeforeEachLine({ content: `1. `})').mx-0
               v-icon mdi-format-list-numbered
           span {{$t('editor:markup.orderedList')}}
-        v-tooltip(bottom, color='primary')
+        v-tooltip(bottom, :color='colors.surfaceDark.infoHeavy')
           template(v-slot:activator='{ on }')
             v-btn.animated.fadeIn.wait-p9s(icon, tile, v-on='on', @click='toggleMarkup({ start: "`" })').mx-0
               v-icon mdi-code-tags
           span {{$t('editor:markup.inlineCode')}}
-        v-tooltip(bottom, color='primary')
+        v-tooltip(bottom, :color='colors.surfaceDark.infoHeavy')
           template(v-slot:activator='{ on }')
             v-btn.animated.fadeIn.wait-p10s(icon, tile, v-on='on', @click='toggleMarkup({ start: `<kbd>`, end: `</kbd>` })').mx-0
               v-icon mdi-keyboard-variant
           span {{$t('editor:markup.keyboardKey')}}
-        v-tooltip(bottom, color='primary')
+        v-tooltip(bottom, :color='colors.surfaceDark.infoHeavy')
           template(v-slot:activator='{ on }')
             v-btn.animated.fadeIn.wait-p11s(icon, tile, v-on='on', @click='insertAfter({ content: `---`, newLine: true })').mx-0
               v-icon mdi-minus
           span {{$t('editor:markup.horizontalBar')}}
         template(v-if='$vuetify.breakpoint.mdAndUp')
           v-spacer
-          v-tooltip(bottom, color='primary', v-if='previewShown')
+          v-tooltip(bottom, :color='colors.surfaceDark.infoHeavy', v-if='previewShown')
             template(v-slot:activator='{ on }')
               v-btn.animated.fadeIn.wait-p1s(icon, tile, v-on='on', @click='spellModeActive = !spellModeActive').mx-0
                 v-icon(:color='spellModeActive ? `amber` : `white`') mdi-spellcheck
             span {{$t('editor:markup.toggleSpellcheck')}}
-          v-tooltip(bottom, color='primary')
+          v-tooltip(bottom, :color='colors.surfaceDark.infoHeavy')
             template(v-slot:activator='{ on }')
               v-btn.animated.fadeIn.wait-p2s(icon, tile, v-on='on', @click='previewShown = !previewShown').mx-0
                 v-icon mdi-book-open-outline
             span {{$t('editor:markup.togglePreviewPane')}}
     .editor-markdown-main
       .editor-markdown-sidebar
-        v-tooltip(right, color='teal')
+        v-tooltip(right, :color='colors.surfaceDark.infoHeavy')
           template(v-slot:activator='{ on }')
             v-btn.animated.fadeInLeft(icon, tile, v-on='on', dark, @click='insertLink').mx-0
               v-icon mdi-link-plus
           span {{$t('editor:markup.insertLink')}}
-        v-tooltip(right, color='teal')
+        v-tooltip(right, :color='colors.surfaceDark.infoHeavy')
           template(v-slot:activator='{ on }')
-            v-btn.mt-3.animated.fadeInLeft.wait-p1s(icon, tile, v-on='on', dark, @click='toggleModal(`editorModalMedia`)').mx-0
+            v-btn.mt-3.animated.fadeInLeft.wait-p1s(icon, tile, v-on='on', dark, @click='insertExternalLink', aria-label='Insert External Link').mx-0
+              v-icon mdi-open-in-new
+          span Insert External Link
+        v-tooltip(right, :color='colors.surfaceDark.infoHeavy')
+          template(v-slot:activator='{ on }')
+            v-btn.mt-3.animated.fadeInLeft.wait-p2s(icon, tile, v-on='on', dark, @click='toggleModal(`editorModalMedia`)').mx-0
               v-icon(:color='activeModal === `editorModalMedia` ? `teal` : ``') mdi-folder-multiple-image
           span {{$t('editor:markup.insertAssets')}}
-        v-tooltip(right, color='teal')
+        v-tooltip(right, :color='colors.surfaceDark.infoHeavy')
           template(v-slot:activator='{ on }')
-            v-btn.mt-3.animated.fadeInLeft.wait-p2s(icon, tile, v-on='on', dark, @click='toggleModal(`editorModalDrawio`)').mx-0
+            v-btn.mt-3.animated.fadeInLeft.wait-p3s(icon, tile, v-on='on', dark, @click='toggleModal(`editorModalDrawio`)').mx-0
               v-icon mdi-chart-multiline
           span {{$t('editor:markup.insertDiagram')}}
         template(v-if='$vuetify.breakpoint.mdAndUp')
           v-spacer
-          v-tooltip(right, color='teal')
+          v-tooltip(right, :color='colors.surfaceDark.infoHeavy')
             template(v-slot:activator='{ on }')
-              v-btn.mt-3.animated.fadeInLeft.wait-p3s(icon, tile, v-on='on', dark, @click='toggleFullscreen').mx-0
+              v-btn.mt-3.animated.fadeInLeft.wait-p4s(icon, tile, v-on='on', dark, @click='toggleFullscreen').mx-0
                 v-icon mdi-arrow-expand-all
             span {{$t('editor:markup.distractionFreeMode')}}
-          v-tooltip(right, color='teal')
+          v-tooltip(right, :color='colors.surfaceDark.infoHeavy')
             template(v-slot:activator='{ on }')
               v-btn.mt-3.animated.fadeInLeft.wait-p4s(icon, tile, v-on='on', dark, @click='toggleHelp').mx-0
                 v-icon(:color='helpShown ? `teal` : ``') mdi-help-circle
@@ -152,7 +163,7 @@
               @blur='spellModeActive = false'
               )
 
-    v-system-bar.editor-markdown-sysbar(dark, status, color='grey darken-3')
+    v-system-bar.editor-markdown-sysbar(dark, status, :color='colors.surfaceDark.black')
       .caption.editor-markdown-sysbar-locale {{locale.toUpperCase()}}
       .caption.px-3 /{{path}}
       template(v-if='$vuetify.breakpoint.mdAndUp')
@@ -163,6 +174,60 @@
 
     markdown-help(v-if='helpShown')
     page-selector(mode='select', v-model='insertLinkDialog', :open-handler='insertLinkHandler', :path='path', :locale='locale')
+    
+    v-dialog(v-model='insertExternalLinkDialog', max-width='550', persistent, overlay-color='blue-grey darken-4', overlay-opacity='.7')
+      v-card
+        .dialog-header.is-short(:style='`background-color: ${colors.blue[500]} !important;`')
+          v-icon.mr-2(color='white') mdi-open-in-new
+          span(:style='`color: ${colors.textLight.inverse};`') Insert External Link
+        v-card-text.pt-5
+          .d-flex.align-center
+            span URL
+            v-tooltip(right, color='#424242')
+              template(v-slot:activator='{ on }')
+                v-icon.ml-2.grey--text(small, v-on='on') mdi-information-outline
+              span Enter a URL or domain. https:// is added automatically if missing.
+          v-text-field(
+            v-model='externalLinkUrl'
+            placeholder='https://example.com'
+            outlined
+            dense
+            autofocus
+            :error='externalLinkUrlError'
+            :error-messages='externalLinkUrlError ? "URL is required" : ""'
+            @keyup.enter='insertExternalLinkHandler'
+            class='mt-1'
+          )
+          v-text-field(
+            v-model='externalLinkText'
+            label='Link Text (optional)'
+            placeholder='Enter link text or leave blank to use the URL'
+            outlined
+            dense
+            class='mt-2'
+            @keyup.enter='insertExternalLinkHandler'
+          )
+          v-checkbox(
+            v-model='externalLinkNewTab'
+            label='Open in new tab'
+            class='mt-1'
+          )
+        v-card-chin
+          v-spacer
+          v-btn.btn-rounded(
+            outlined
+            rounded
+            :color='$vuetify.theme.dark ? colors.surfaceDark.inverse : colors.surfaceLight.primarySapHeavy'
+            @click='closeExternalLinkDialog'
+            ) {{$t('common:actions.cancel')}}
+          v-btn.px-4.btn-rounded(
+            rounded
+            :dark='$vuetify.theme.dark'
+            :color='$vuetify.theme.dark ? colors.surfaceDark.secondarySapHeavy : colors.surfaceLight.secondaryBlueHeavy'
+            @click='insertExternalLinkHandler'
+            :disabled='!externalLinkUrl'
+            )
+            span.text-none(:style='`color: ${colors.textLight.inverse};`') INSERT LINK
 </template>
 
 <script>
@@ -171,6 +236,7 @@ import { get, sync } from 'vuex-pathify'
 import markdownHelp from './markdown/help.vue'
 import gql from 'graphql-tag'
 import DOMPurify from 'dompurify'
+import colors from '@/themes/default/js/color-scheme'
 
 /* global siteConfig, siteLangs */
 
@@ -392,8 +458,14 @@ export default {
       helpShown: false,
       spellModeActive: false,
       insertLinkDialog: false,
+      insertExternalLinkDialog: false,
+      externalLinkUrl: '',
+      externalLinkText: '',
+      externalLinkNewTab: false,
+      externalLinkUrlError: false,
       newMentions: new Map(),
-      mentionCache: {}
+      mentionCache: {},
+      colors: colors
     }
   },
   computed: {
@@ -425,6 +497,26 @@ export default {
           this.$refs.editorPreview.focus()
         })
       }
+    },
+    '$vuetify.theme.dark' () {
+      // Re-render diagrams with new theme when theme changes
+      this.$nextTick(() => {
+        // Clear all processed mermaid diagrams and re-render
+        if (this.$refs.editorPreviewContainer) {
+          const mermaidDivs = this.$refs.editorPreviewContainer.querySelectorAll('.mermaid[data-processed="true"]')
+          mermaidDivs.forEach(div => {
+            // Save the original source code
+            const source = div.getAttribute('data-mermaid-source') || div.textContent
+            div.setAttribute('data-mermaid-source', source)
+            div.removeAttribute('data-processed')
+            div.innerHTML = source // Restore original mermaid code
+            div.classList.add('mermaid')
+          })
+        }
+        
+        // Re-render with new theme
+        this.renderMermaidDiagrams()
+      })
     }
   },
   methods: {
@@ -492,7 +584,9 @@ export default {
       // this.$store.set('editor/content', newContent)
       this.processMarkers(this.cm.firstLine(), this.cm.lastLine())
       this.previewHTML = DOMPurify.sanitize(md.render(newContent), {
-        ADD_TAGS: ['foreignObject']
+        ADD_TAGS: ['img', 'foreignObject'],
+        ADD_ATTR: ['src', 'alt', 'class', 'id', 'target'],
+        HTML_INTEGRATION_POINTS: { foreignobject: true }
       })
       this.$nextTick(() => {
         tabsetHelper.format()
@@ -568,29 +662,90 @@ export default {
      * Insert content before current line
      */
     insertBeforeEachLine({ content, after }) {
-      let lines = []
-      if (!this.cm.doc.somethingSelected()) {
-        lines.push(this.cm.doc.getCursor('head').line)
-      } else {
-        lines = _.flatten(this.cm.doc.listSelections().map(sl => {
-          const range = Math.abs(sl.anchor.line - sl.head.line) + 1
-          const lowestLine = (sl.anchor.line > sl.head.line) ? sl.head.line : sl.anchor.line
-          return _.times(range, l => l + lowestLine)
-        }))
-      }
-      lines.forEach(ln => {
-        let lineContent = this.cm.doc.getLine(ln)
-        const lineLength = lineContent.length
-        if (_.startsWith(lineContent, content)) {
-          lineContent = lineContent.substring(content.length)
-        }
+      const config = {
+        '- ': { pattern: /^- /, type: 'unordered' },
+        '1. ': { pattern: /^\d+\. /, type: 'ordered' },
+        '> ': { pattern: /^> /, type: 'blockquote' }
+      }[content]
 
-        this.cm.doc.replaceRange(content + lineContent, { line: ln, ch: 0 }, { line: ln, ch: lineLength })
-      })
-      if (after) {
-        const lastLine = _.last(lines)
-        this.cm.doc.replaceRange(`\n${after}\n`, { line: lastLine, ch: this.cm.doc.getLine(lastLine).length + 1 })
+      const lines = this.cm.doc.somethingSelected() ?
+        _.range(
+          Math.min(this.cm.doc.listSelections()[0].from().line, this.cm.doc.listSelections()[0].to().line),
+          Math.max(this.cm.doc.listSelections()[0].from().line, this.cm.doc.listSelections()[0].to().line) + 1
+        ) : [this.cm.doc.getCursor('head').line]
+
+      const getLineText = (ln) => this.cm.doc.getLine(ln)
+      const hasPrefix = (text) => config.pattern.test(text)
+      const isAttr = (text) => /^(> )?<!--\{\.is-.*?\}-->/.test(text)
+      const buildPrefix = (text, needsAttr) => {
+        if (needsAttr) return `${content}<!--${after}-->\n${content}`
+        if (config.type === 'ordered') return '1. '
+        return content + text
       }
+
+      const attrLineIdx = config.type === 'blockquote' ?
+        [lines[0] - 1, lines[0]].find(idx => idx >= 0 && isAttr(getLineText(idx))) ?? -1 : -1
+
+      const contentLines = lines.filter(ln => !isAttr(getLineText(ln)))
+      const nonEmptyContentLines = contentLines.filter(ln => getLineText(ln).trim())
+      const allHavePrefix = nonEmptyContentLines.length > 0 && nonEmptyContentLines.every(ln => hasPrefix(getLineText(ln)))
+
+      const state = {
+        isSingleEmpty: contentLines.length === 1 && !nonEmptyContentLines.length,
+        isToggleOff: allHavePrefix,
+        hasAttribute: attrLineIdx >= 0,
+        needsAttribute: after && config.type === 'blockquote'
+      }
+
+      const actions = {
+        'singleEmpty': {
+          match: () => state.isSingleEmpty && !hasPrefix(getLineText(contentLines[0])),
+          execute: () => {
+            const ln = contentLines[0]
+            const text = getLineText(ln)
+            const newText = buildPrefix(text, state.needsAttribute)
+            this.cm.doc.replaceRange(newText, { line: ln, ch: 0 }, { line: ln, ch: text.length })
+          }
+        },
+        'toggleOffWithAttr': {
+          match: () => state.isToggleOff && state.hasAttribute,
+          execute: () => {
+            this.cm.doc.replaceRange('', { line: attrLineIdx, ch: 0 }, { line: attrLineIdx + 1, ch: 0 })
+            contentLines.map(ln => ln > attrLineIdx ? ln - 1 : ln).forEach(ln => {
+              const text = getLineText(ln)
+              hasPrefix(text) && this.cm.doc.replaceRange(text.replace(config.pattern, ''), { line: ln, ch: 0 }, { line: ln, ch: text.length })
+            })
+          }
+        },
+        'toggleOff': {
+          match: () => state.isToggleOff,
+          execute: () => {
+            contentLines.forEach(ln => {
+              const text = getLineText(ln)
+              hasPrefix(text) && this.cm.doc.replaceRange(text.replace(config.pattern, ''), { line: ln, ch: 0 }, { line: ln, ch: text.length })
+            })
+          }
+        },
+        'toggleOn': {
+          match: () => true,
+          execute: () => {
+            state.needsAttribute && this.cm.doc.replaceRange(`${content}<!--${after}-->\n`, { line: lines[0], ch: 0 })
+            const workingLines = state.needsAttribute ? contentLines.map(ln => ln + 1) : contentLines
+            let counter = 1
+            workingLines.forEach(ln => {
+              const text = getLineText(ln)
+              if (hasPrefix(text)) {
+                config.type === 'ordered' && counter++
+              } else {
+                const prefix = config.type === 'ordered' ? `${counter++}. ` : content
+                this.cm.doc.replaceRange(prefix + text, { line: ln, ch: 0 }, { line: ln, ch: text.length })
+              }
+            })
+          }
+        }
+      }
+
+      Object.values(actions).find(action => action.match() && (action.execute(), true))
     },
     /**
      * Update scroll sync
@@ -629,13 +784,94 @@ export default {
       })
     },
     renderMermaidDiagrams () {
-      document.querySelectorAll('.editor-markdown-preview pre.codeblock-mermaid > code').forEach(elm => {
-        mermaidId++
-        const mermaidDef = elm.innerText
-        const mmElm = document.createElement('div')
-        mmElm.innerHTML = `<div id="mermaid-id-${mermaidId}">${mermaid.render(`mermaid-id-${mermaidId}`, mermaidDef)}</div>`
-        elm.parentElement.replaceWith(mmElm)
+      // Convert codeblock-mermaid to .mermaid elements that mermaid.js can process
+      if (this.$refs.editorPreviewContainer) {
+        const mermaidCodeBlocks = this.$refs.editorPreviewContainer.querySelectorAll('pre.codeblock-mermaid')
+        mermaidCodeBlocks.forEach(pre => {
+          const code = pre.querySelector('code')
+          if (code) {
+            const mermaidDiv = document.createElement('div')
+            mermaidDiv.className = 'mermaid'
+            mermaidDiv.textContent = code.textContent
+            mermaidDiv.setAttribute('data-mermaid-source', code.textContent) // Store source for re-rendering
+            mermaidDiv.removeAttribute('data-processed') // Force re-render
+            pre.replaceWith(mermaidDiv)
+          }
+        })
+      }
+      
+      // Initialize mermaid with correct theme
+      const mermaidTheme = this.$vuetify.theme.dark ? 'dark' : 'default'
+      
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: mermaidTheme,
+        securityLevel: 'loose'
       })
+      
+      // Run mermaid on unprocessed diagrams
+      if (this.$refs.editorPreviewContainer) {
+        const mermaidDivs = this.$refs.editorPreviewContainer.querySelectorAll('.mermaid:not([data-processed])')
+        mermaidDivs.forEach(div => {
+          mermaid.run({ nodes: [div] })
+        })
+      }
+      
+      // Apply color-scheme protection after rendering
+      this.$nextTick(() => {
+        this.applyMermaidColorProtection()
+      })
+      // Optionally, if you need to render specific diagrams manually:
+      // document.querySelectorAll('.editor-markdown-preview pre.codeblock-mermaid > code').forEach(elm => {
+      //   mermaidId++
+      //   const mermaidDef = elm.innerText
+      //   const mmElm = document.createElement('div')
+      //   mmElm.innerHTML = `<div class="mermaid">${mermaidDef}</div>`
+      //   elm.parentNode.replaceWith(mmElm)
+      // })
+    },
+    applyMermaidColorProtection () {
+      // Apply color-scheme protection to mermaid diagrams in editor preview
+      // Use the appropriate color-scheme based on Vuetify theme, but prevent browser override
+      const colorScheme = this.$vuetify.theme.dark ? 'dark' : 'light'
+      
+      if (this.$refs.editorPreviewContainer) {
+        const mermaidContainers = this.$refs.editorPreviewContainer.querySelectorAll('.mermaid')
+        mermaidContainers.forEach(container => {
+          container.style.setProperty('color-scheme', colorScheme, 'important')
+          container.style.setProperty('forced-color-adjust', 'none', 'important')
+          container.style.setProperty('filter', 'none', 'important')
+          
+          // Also protect SVGs inside
+          const svgs = container.querySelectorAll('svg')
+          svgs.forEach(svg => {
+            svg.style.setProperty('color-scheme', colorScheme, 'important')
+            svg.style.setProperty('forced-color-adjust', 'none', 'important')
+            svg.style.setProperty('filter', 'none', 'important')
+          })
+        })
+        
+        // Also protect draw.io diagrams (pre.diagram)
+        const diagramContainers = this.$refs.editorPreviewContainer.querySelectorAll('pre.diagram')
+        diagramContainers.forEach(container => {
+          container.style.setProperty('color-scheme', colorScheme, 'important')
+          container.style.setProperty('forced-color-adjust', 'none', 'important')
+          container.style.setProperty('filter', 'none', 'important')
+          
+          const svgs = container.querySelectorAll('svg')
+          svgs.forEach(svg => {
+            svg.style.setProperty('color-scheme', colorScheme, 'important')
+            svg.style.setProperty('forced-color-adjust', 'none', 'important')
+            svg.style.setProperty('filter', 'none', 'important')
+            
+            // Remove color-scheme from inline style attribute if present
+            if (svg.style.colorScheme) {
+              svg.style.removeProperty('color-scheme')
+              svg.style.setProperty('color-scheme', colorScheme, 'important')
+            }
+          })
+        })
+      }
     },
     autocomplete (cm, change) {
       if (cm.getModeAt(cm.getCursor()).name !== 'markdown') {
@@ -772,6 +1008,81 @@ export default {
       this.insertAtCursor({
         content: siteLangs.length > 0 ? `[${lastPart}](/${this.sitePath}/${locale}/${path})` : `[${lastPart}](/${this.sitePath}/${path})`
       })
+    },
+    insertExternalLink () {
+      this.externalLinkUrl = ''
+      this.externalLinkText = ''
+      this.externalLinkNewTab = false
+      this.externalLinkUrlError = false
+      this.insertExternalLinkDialog = true
+    },
+    closeExternalLinkDialog () {
+      this.insertExternalLinkDialog = false
+      this.externalLinkUrl = ''
+      this.externalLinkText = ''
+      this.externalLinkNewTab = false
+      this.externalLinkUrlError = false
+    },
+    normalizeUrl (url) {
+      if (!url) return ''
+      url = url.trim()
+      // If URL doesn't start with a protocol, add https://
+      if (!url.match(/^[a-z][a-z0-9+.-]*:/i)) {
+        url = 'https://' + url
+      }
+      return url
+    },
+    validateUrl (url) {
+      if (!url?.trim()) return false
+      // Basic URL validation regex
+      const urlRegex = /^(https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&/=]*)$/
+      return urlRegex.test(url)
+    },
+    insertExternalLinkHandler () {
+      const url = this.externalLinkUrl.trim()
+      
+      // Validate URL
+      if (!url) {
+        this.externalLinkUrlError = true
+        return
+      }
+      
+      // Normalize URL (add https:// if missing)
+      const normalizedUrl = this.normalizeUrl(url)
+      
+      // Validate the normalized URL
+      if (!this.validateUrl(normalizedUrl)) {
+        this.$store.commit('showNotification', {
+          message: 'Please enter a valid URL',
+          style: 'warning',
+          icon: 'warning'
+        })
+        return
+      }
+      
+      const linkText = this.externalLinkText || normalizedUrl
+      let content
+      
+      if (this.externalLinkNewTab) {
+        // Use HTML for new tab links
+        content = `<a href="${normalizedUrl}" target="_blank" rel="noopener noreferrer">${linkText}</a>`
+      } else {
+        // Use standard Markdown syntax
+        content = `[${linkText}](${normalizedUrl})`
+      }
+      
+      // Track analytics
+      this.$store.commit('log', {
+        event: 'editor.external_link.insert',
+        openNewTab: this.externalLinkNewTab,
+        hasDisplayText: !!this.externalLinkText
+      })
+      
+      this.insertAtCursor({
+        content: content
+      })
+      
+      this.closeExternalLinkDialog()
     },
     processMarkers (from, to) {
       let found = null
@@ -916,6 +1227,47 @@ export default {
       this.setHeaderLine(lvl - 1)
       return false
     })
+    // Add custom Enter key handler for blockquotes and lists
+    keyBindings['Enter'] = (cm) => {
+      const cursor = cm.getCursor()
+      const line = cm.getLine(cursor.line)
+      
+      // Define patterns for different line types
+      const patterns = [
+        { empty: /^>\s*$/, continue: /^(>\s*)/, next: (m) => m[1] },
+        { empty: /^-\s*$/, continue: /^(- )/, next: (m) => m[1] },
+        { empty: /^\d+\.\s*$/, continue: /^(\d+)\. /, next: (m) => `${parseInt(m[1]) + 1}. ` }
+      ]
+      
+      // Check if cursor is at end of line
+      const atLineEnd = cursor.ch === line.length
+      
+      // Check each pattern
+      for (const pattern of patterns) {
+        // Check if it's an empty marker line (exit the block/list)
+        if (pattern.empty.test(line) && atLineEnd) {
+          // Remove the empty marker and add newline
+          const lineStart = { line: cursor.line, ch: 0 }
+          const lineEnd = { line: cursor.line, ch: line.length }
+          cm.replaceRange('', lineStart, lineEnd)
+          cm.replaceSelection('\n')
+          return
+        }
+        
+        // Check if line continues the pattern (only at end of line)
+        if (atLineEnd) {
+          const match = line.match(pattern.continue)
+          if (match) {
+            cm.replaceSelection('\n' + pattern.next(match))
+            return
+          }
+        }
+      }
+      
+      // Default behavior
+      cm.execCommand('newlineAndIndent')
+    }
+
     this.cm.setOption('extraKeys', keyBindings)
 
     this.cm.on('inputRead', this.autocomplete)
@@ -1025,10 +1377,18 @@ export default {
 }
 </script>
 
-<style lang='scss'>
-
+<style lang='scss' scoped>
 $editor-height: calc(100vh - 112px - 24px);
 $editor-height-mobile: calc(100vh - 112px - 16px);
+$editor-bg: mc('surface-dark', 'page-background');
+
+.v-btn {
+  border-radius: 50px;
+}
+
+.editor-markdown-toolbar.v-toolbar.v-toolbar--dense {
+  background-color: mc('surface-dark', 'primary-blue-heavy') !important;
+}
 
 .editor-markdown {
   &-main {
@@ -1037,11 +1397,12 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
   }
 
   &-editor {
-    background-color: darken(mc('grey', '900'), 4.5%);
+    background-color: mc('surface-dark', 'page-background');
     flex: 1 1 50%;
     display: block;
     height: $editor-height;
     position: relative;
+    border-right: 1px solid mc('border-dark', 'primary');
 
     @include until($tablet) {
       height: $editor-height-mobile;
@@ -1050,14 +1411,14 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
 
   &-preview {
     flex: 1 1 50%;
-    background-color: mc('grey', '100');
+    background-color: mc('surface-light', 'page-background');
     position: relative;
     height: $editor-height;
     overflow: hidden;
     padding: 1rem;
 
     @at-root .theme--dark & {
-      background-color: mc('grey', '900');
+      background-color: mc('surface-dark', 'page-background');
     }
 
     @include until($tablet) {
@@ -1082,12 +1443,12 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
       overflow-y: scroll;
       padding: 0;
       width: calc(100% + 17px);
-      // -ms-overflow-style: none;
-
-      // &::-webkit-scrollbar {
-      //   width: 0px;
-      //   background: transparent;
-      // }
+      position: relative;
+      top: -1rem;
+      
+      &.contents {
+        padding-bottom: 1rem;
+      }
 
       @include until($tablet) {
         height: $editor-height-mobile;
@@ -1101,21 +1462,20 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
         overflow-wrap: break-word;
       }
 
-      .tabset {
-        background-color: mc('teal', '700');
-        color: mc('teal', '100') !important;
+      ::v-deep .tabset {
+        background-color: mc('peacock', '700');
+        color: mc('peacock', '100') !important;
         padding: 5px 12px;
         font-size: 14px;
         font-weight: 500;
         border-radius: 5px 0 0 0;
-        font-style: italic;
 
         &::after {
           display: none;
         }
 
         &-header {
-          background-color: mc('teal', '500');
+          background-color: mc('peacock', '500');
           color: #FFF !important;
           padding: 5px 12px;
           font-size: 14px;
@@ -1128,13 +1488,13 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
         }
 
         &-content {
-          border-left: 5px solid mc('teal', '500');
-          background-color: mc('teal', '50');
+          border-left: 5px solid mc('peacock', '500');
+          background-color: mc('peacock', '50');
           padding: 0 15px 15px;
           overflow: hidden;
 
           @at-root .theme--dark & {
-            background-color: rgba(mc('teal', '500'), .1);
+            background-color: rgba(mc('peacock', '500'), .1);
           }
         }
       }
@@ -1142,8 +1502,6 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
   }
 
   &-toolbar {
-    background-color: mc('blue', '700');
-    background-image: linear-gradient(to bottom, mc('blue', '700') 0%, mc('blue','800') 100%);
     color: #FFF;
 
     .v-toolbar__content {
@@ -1163,7 +1521,7 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
   }
 
   &-sidebar {
-    background-color: mc('grey', '900');
+    background-color: mc('surface-dark', 'secondary-neutral-heavy');
     width: 64px;
     display: flex;
     flex-direction: column;
@@ -1181,7 +1539,7 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
     padding-left: 0;
 
     &-locale {
-      background-color: rgba(255,255,255,.25);
+      background-color: mc('surface-dark', 'primary-neutral-heavy');
       display:inline-flex;
       padding: 0 12px;
       height: 24px;
@@ -1198,6 +1556,42 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
   .speed-dial--fixed {
     z-index: 8;
   }
+}
+</style>
+
+// Global styles
+<style lang='scss'>
+$editor-bg: mc('surface-dark', 'page-background');
+
+.editor-markdown {
+
+  // ==========================================
+  // MERMAID DIAGRAM COLOR PROTECTION
+  // ==========================================
+  
+  .editor-markdown-preview-content {
+    .mermaid, .mermaid svg {
+      color-scheme: only light !important;
+      forced-color-adjust: none !important;
+      filter: none !important;
+    }
+    
+    // Also protect draw.io diagrams
+    pre.diagram, pre.diagram svg {
+      color-scheme: only light !important;
+      forced-color-adjust: none !important;
+      filter: none !important;
+    }
+
+    // Remove styling from anonymized user mentions
+    .mention[data-mention="AnonymousUser"] {
+      background: none;
+      color: inherit;
+      font-weight: inherit;
+      padding: 0;
+      border-radius: 0;
+    }
+  }
 
   // ==========================================
   // CODE MIRROR
@@ -1207,6 +1601,8 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
     height: auto;
     font-family: 'Ubuntu Mono', monospace;
     font-size: .9rem;
+    background-color: mc('surface-dark', 'page-background');
+    color: mc('text-dark', 'primary');
 
     .cm-header-1 {
       font-size: 1.5rem;
@@ -1230,6 +1626,24 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
 
   .CodeMirror-wrap pre.CodeMirror-line, .CodeMirror-wrap pre.CodeMirror-line-like {
     word-break: break-word;
+    background-color: mc('surface-dark', 'page-background');
+    color: mc('text-dark', 'primary');
+
+    ::selection {
+      background-color: mc('neutral', '750');
+    }
+  }
+
+  .cm-s-wikijs-dark.CodeMirror {
+    &, .CodeMirror-gutters {
+      background-color: $editor-bg;
+    }
+
+    .CodeMirror-linenumber.CodeMirror-gutter-elt,
+    .CodeMirror-foldgutter-open.CodeMirror-guttermarker-subtle,
+    .CodeMirror-foldgutter-folded.CodeMirror-guttermarker-subtle {
+      color: mc('text-dark', 'tertiary');
+    }
   }
 
   .CodeMirror-focused .cm-matchhighlight {
@@ -1238,7 +1652,7 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
     background-repeat: repeat-x;
   }
   .cm-matchhighlight {
-    background-color: mc('grey', '800');
+    background-color: mc('neutral', '800');
   }
   .CodeMirror-selection-highlight-scrollbar {
     background-color: mc('green', '600');
@@ -1257,9 +1671,9 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
   padding: 1px;
 
   box-shadow: 2px 3px 5px rgba(0,0,0,.2);
-  border: 1px solid mc('grey', '700');
+  border: 1px solid mc('neutral', '700');
 
-  background: mc('grey', '900');
+  background: mc('neutral', '900');
   font-family: 'Ubuntu Mono', monospace;
   font-size: .9rem;
 

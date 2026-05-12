@@ -60,7 +60,7 @@
             v-icon(:color='isLatestVersion ? `green` : `red darken-4`', small) mdi-wrench
           v-card-text
             v-icon.dashboard-icon mdi-blur
-            .subtitle-1 {{wikiName}} {{info.currentVersion}}
+            .subtitle-1 Wiki.js {{info.currentVersion}}
             .body-2(v-if='isLatestVersion') {{$t('admin:dashboard.versionLatest')}}
             .body-2(v-else) {{$t('admin:dashboard.versionNew', { version: info.latestVersion })}}
       v-flex(xs12, xl6)
@@ -105,15 +105,12 @@ import sitesCount from 'gql/admin/sites/sites-query-count.gql'
 import gql from 'graphql-tag'
 import semverLte from 'semver/functions/lte'
 
-/* global siteConfig */
-
 export default {
   components: {
     AnimatedNumber
   },
   data() {
     return {
-      wikiName: siteConfig.title || 'Wiki.js',
       recentPages: [],
       recentPagesLoading: false,
       recentPagesHeaders: [
@@ -200,21 +197,19 @@ export default {
 
 .dashboard-contribute {
   background-color: #FFF;
-  background-image: linear-gradient(to bottom, #FFF 0%, lighten(mc('indigo', '50'), 3%) 100%);
   border-radius: 7px;
 
   @at-root .theme--dark & {
-    background-color: mc('grey', '800');
-    background-image: linear-gradient(to bottom, mc('grey', '800') 0%, darken(mc('grey', '800'), 6%) 100%);
+    background-color: mc('neutral', '800');
   }
 
   .v-card__text {
     display: flex;
     align-items: center;
-    color: mc('indigo', '500') !important;
+    color: mc('blue', '500') !important;
 
     @at-root .theme--dark & {
-      color: mc('grey', '300') !important;
+      color: mc('neutral', '300') !important;
     }
   }
 }

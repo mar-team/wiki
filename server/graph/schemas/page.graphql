@@ -23,6 +23,7 @@ extend type Query {
 
   listPages(
     limit: Int
+    offset: Int
     orderBy: PageOrderBy
     orderByDirection: PageOrderByDirection
     tags: [String!]
@@ -170,6 +171,12 @@ type PageMutation {
 
   purgeHistory(olderThan: String!): DefaultResponse
     @auth(requires: ["manage:system"])
+
+  reorderPages(
+    parentId: Int!
+    orders: [PageReorderInput!]!
+  ): DefaultResponse
+    @auth(requires: ["manage:pages", "manage:system", "manage:sites"])
 }
 
 # -----------------------------------------------
@@ -294,6 +301,7 @@ type PageSearchResult {
   locale: String!
   # the siteId field must not be non-nullable even though the entries in the database are non-null...
   siteId: String
+  source: String
 }
 
 type PageListItem {
@@ -308,6 +316,7 @@ type PageListItem {
   privateNS: String
   createdAt: Date!
   updatedAt: Date!
+  authorName: String
   tags: [String]
   siteId: String
   siteName: String
@@ -326,6 +335,7 @@ type PageTreeItem {
   pageId: Int
   locale: String!
   siteId: String!
+  child_position: Int!
 }
 
 type PageLinkItem {
@@ -363,6 +373,10 @@ enum PageOrderByDirection {
   DESC
 }
 
+input PageReorderInput {
+  pageId: Int!
+  position: Int!
+}
 enum PageTreeMode {
   FOLDERS
   PAGES

@@ -14,7 +14,7 @@
               v-alert(v-model='error', type='error', icon='mdi-alert', tile, dismissible) {{ errorMessage }}
               v-alert(v-if='!error', tile, color='blue lighten-5', :value='true')
                 v-icon.mr-3(color='blue') mdi-package-variant
-                span.blue--text You are about to install {{wikiName}} #[strong {{wikiVersion}}].
+                span.blue--text You are about to install Wiki.js #[strong {{wikiVersion}}].
               v-card-text
                 .overline.pl-3 Administrator Account
                 v-container.pa-3.mt-3(grid-list-xl)
@@ -62,7 +62,7 @@
                   ref='adminSiteUrl',
                   v-model='conf.siteUrl',
                   label='Site URL',
-                  hint='Full URL to your wiki, without the trailing slash (e.g. https://wiki.example.com). This should be the public facing URL, not the internal one if using a reverse-proxy.',
+                  hint='Full URL to your wiki, without the trailing slash (e.g. https://js.wiki). This should be the public facing URL, not the internal one if using a reverse-proxy.',
                   persistent-hint
                   @keyup.enter='install'
                 )
@@ -120,7 +120,6 @@ export default {
   },
   data() {
     return {
-      wikiName: siteConfig.title || 'Wiki.js',
       loading: false,
       success: false,
       error: false,
@@ -129,7 +128,7 @@ export default {
         adminEmail: '',
         adminPassword: '',
         adminPasswordConfirm: '',
-        siteUrl: 'https://wiki.yourdomain.com',
+        siteUrl: 'https://wiki.example.com',
         telemetry: true
       },
       pwdMode: true,
@@ -238,7 +237,7 @@ export default {
   .v-application--wrap {
     padding-top: 10vh;
     background-color: #111;
-    background-image: linear-gradient(45deg, mc('blue', '100'), mc('blue', '700'), mc('indigo', '900'));
+    background-image: linear-gradient(45deg, mc('blue', '100'), mc('blue', '700'), mc('blue', '900'));
     background-blend-mode: exclusion;
 
     &::before {

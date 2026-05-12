@@ -12,7 +12,7 @@
         hide-details
         v-model='newcomment'
         color='blue-grey darken-2'
-        :background-color='$vuetify.theme.dark ? `grey darken-5` : `white`'
+        :background-color='$vuetify.theme.dark ? `black` : `white`'
         v-if='permissions.write'
         :aria-label='$t(`common:comments.fieldContent`)'
       )
@@ -23,7 +23,7 @@
         v-text-field(
           outlined
           color='blue-grey darken-2'
-          :background-color='$vuetify.theme.dark ? `grey darken-5` : `white`'
+          :background-color='$vuetify.theme.dark ? `black` : `white`'
           :placeholder='$t(`common:comments.fieldName`)'
           hide-details
           dense
@@ -45,20 +45,20 @@
           :aria-label='$t(`common:comments.fieldEmail`)'
         )
     .d-flex.align-center.pt-3(v-if='permissions.write')
-      v-icon.mr-1(color='blue-grey') mdi-language-markdown-outline
-      .caption.blue-grey--text {{$t('common:comments.markdownFormat')}}
+      v-icon.mr-1(color='grey lighten-1') mdi-language-markdown-outline
+      .caption.grey-lighten--text {{$t('common:comments.markdownFormat')}}
       v-spacer
-      .caption.mr-3(v-if='isAuthenticated')
-        i18next(tag='span', path='common:comments.postingAs')
-          strong(place='name') {{userDisplayName}}
-      v-btn(
+      .caption.mr-3.grey--text(v-if='isAuthenticated')
+        strong
+          span {{ $t('common:comments.postingAs') || 'Posting As' }}
+        | {{userDisplayName}}
+      v-btn.btn-rounded(
         dark
-        color='blue-grey darken-2'
+        :color='$vuetify.theme.dark ? colors.surfaceDark.secondarySapHeavy : colors.surfaceLight.secondaryBlueHeavy'
         @click='postComment'
         depressed
         :aria-label='$t(`common:comments.postComment`)'
         )
-        v-icon(left) mdi-comment
         span.text-none {{$t('common:comments.postComment')}}
     v-divider.mt-3(v-if='permissions.write')
     .pa-5.d-flex.align-center.justify-center(v-if='isLoading && !hasLoadedOnce')
@@ -74,14 +74,14 @@
       v-else-if='comments && comments.length > 0'
       )
       v-timeline-item.comments-post(
-        color='pink darken-4'
+        color='indigo darken-1'
         large
         v-for='cm of comments'
         :key='`comment-` + cm.id'
         :id='`comment-post-id-` + cm.id'
         )
         template(v-slot:icon)
-          v-avatar(color='blue-grey')
+          v-avatar(:color='$vuetify.theme.dark ? colors.surfaceDark.secondarySapHeavy : colors.surfaceLight.secondaryBlueHeavy')
             //- v-img(src='http://i.pravatar.cc/64')
             span.white--text.title {{cm.initials}}
         v-card.elevation-1
@@ -89,7 +89,7 @@
             .comments-post-actions(v-if='canManageComment(cm) && !isBusy && commentEditId === 0')
               v-icon.mr-3(small, @click='editComment(cm)') mdi-pencil
               v-icon(small, @click='deleteCommentConfirm(cm)') mdi-delete
-            .comments-post-name.caption: strong {{cm.authorName}}
+            .comments-post-name.caption.author-name: strong {{cm.authorName}}
             .comments-post-date.overline.grey--text {{cm.createdAt | moment('from') }} #[em(v-if='cm.createdAt !== cm.updatedAt') - {{$t('common:comments.modified', { reldate: $options.filters.moment(cm.updatedAt, 'from') })}}]
             .comments-post-content.mt-3(v-if='commentEditId !== cm.id', v-html='cm.render')
             .comments-post-editcontent.mt-3(v-else)
@@ -104,25 +104,24 @@
                   hide-details
                   v-model='commentEditContent'
                   color='blue-grey darken-2'
-                  :background-color='$vuetify.theme.dark ? `grey darken-5` : `white`'
+                  :background-color='$vuetify.theme.dark ? `black` : `white`'
                 )
                 .d-flex.align-center.pt-3
                 v-spacer
                 v-btn.mr-3(
                   dark
-                  color='blue-grey darken-2'
+                  :color='$vuetify.theme.dark ? colors.surfaceDark.inverse : colors.surfaceLight.primarySapHeavy'
                   @click='editCommentCancel'
                   outlined
                   )
-                  v-icon(left) mdi-close
+                  v-icon(left, :color='$vuetify.theme.dark ? colors.surfaceLight.primaryNeutralLite :colors.surfaceLight.inverse') mdi-close
                   span.text-none {{$t('common:actions.cancel')}}
                 v-btn(
                   dark
-                  color='blue-grey darken-2'
+                  :color='$vuetify.theme.dark ? colors.surfaceDark.secondarySapHeavy : colors.surfaceLight.secondaryBlueHeavy'
                   @click='updateComment'
                   depressed
                   )
-                  v-icon(left) mdi-comment
                   span.text-none {{$t('common:comments.updateComment')}}
     .pt-5.text-center.body-2.blue-grey--text(v-else-if='permissions.write') {{$t('common:comments.beFirst')}}
     .text-center.body-2.blue-grey--text(v-else) {{$t('common:comments.none')}}
@@ -146,6 +145,7 @@ import validate from 'validate.js'
 import _ from 'lodash'
 import { Mentionable } from 'vue-mention'
 import 'floating-vue/dist/style.css'
+import colors from '@/themes/default/js/color-scheme'
 import autoCompleteEmailsQuery from '../graph/editor/users-query-auto-complete.gql'
 
 export default {
@@ -154,6 +154,7 @@ export default {
   },
   data() {
     return {
+      colors,
       newcomment: '',
       isLoading: true,
       hasLoadedOnce: false,
@@ -614,7 +615,16 @@ export default {
     background-color: rgba(153, 0, 48, .1);
     color: #990030;
 }
+.author-name {
+  color: mc('neutral', '800');
 
+  @at-root .theme--dark & {
+    color: mc('neutral', '100');
+  }
+}
+.v-btn.btn-rounded {
+  border-radius: 20px;
+}
 .comments-post {
   position: relative;
 
@@ -648,7 +658,7 @@ export default {
     }
 
     code {
-      background-color: rgba(mc('pink', '500'), .1);
+      background-color: rgba(mc('red', '600'), .1);
       box-shadow: none;
     }
 
@@ -672,10 +682,10 @@ export default {
       margin: .5rem 0;
       border-spacing: 0;
       border-radius: 5px;
-      border: 1px solid mc('grey', '300');
+      border: 1px solid mc('neutral', '300');
 
       @at-root .theme--dark & {
-        border-color: mc('grey', '600');
+        border-color: mc('neutral', '600');
       }
 
       &.dense {
@@ -687,14 +697,14 @@ export default {
 
       th {
         padding: .75rem;
-        border-bottom: 2px solid mc('grey', '500');
-        color: mc('grey', '600');
-        background-color: mc('grey', '100');
+        border-bottom: 2px solid mc('neutral', '500');
+        color: mc('neutral', '600');
+        background-color: mc('neutral', '100');
 
         @at-root .theme--dark & {
-          background-color: darken(mc('grey', '900'), 8%);
-          border-bottom-color: mc('grey', '600');
-          color: mc('grey', '500');
+          background-color: mc('neutral', '900');
+          border-bottom-color: mc('neutral', '600');
+          color: mc('neutral', '500');
         }
 
         &:first-child {
@@ -711,19 +721,19 @@ export default {
 
       tr {
         td {
-          border-bottom: 1px solid mc('grey', '300');
-          border-right: 1px solid mc('grey', '100');
+          border-bottom: 1px solid mc('neutral', '300');
+          border-right: 1px solid mc('neutral', '100');
 
           @at-root .theme--dark & {
-            border-bottom-color: mc('grey', '700');
-            border-right-color: mc('grey', '800');
+            border-bottom-color: mc('neutral', '700');
+            border-right-color: mc('neutral', '800');
           }
 
           &:nth-child(even) {
-            background-color: mc('grey', '50');
+            background-color: mc('neutral', '50');
 
             @at-root .theme--dark & {
-              background-color: darken(mc('grey', '900'), 4%);
+              background-color: mc('neutral', '900');
             }
           }
 
@@ -734,17 +744,17 @@ export default {
 
         &:nth-child(even) {
           td {
-            background-color: mc('grey', '50');
+            background-color: mc('neutral', '50');
 
             @at-root .theme--dark & {
-              background-color: darken(mc('grey', '800'), 8%);
+              background-color: mc('neutral', '800');
             }
 
             &:nth-child(even) {
-              background-color: mc('grey', '100');
+              background-color: mc('neutral', '100');
 
               @at-root .theme--dark & {
-                background-color: darken(mc('grey', '800'), 10%);
+                background-color: mc('neutral', '800');
               }
             }
           }

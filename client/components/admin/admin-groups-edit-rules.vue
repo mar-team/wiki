@@ -49,9 +49,9 @@
               v-list-item-title Export Rules
       v-card-text(:class='$vuetify.theme.dark ? `grey darken-4-l5` : `white`')
         .rules
-          .caption(v-if='group.rules.length === 0')
+          .caption(v-if='safeGroupRules.length === 0')
             em(:class='$vuetify.theme.dark ? `grey--text` : `blue-grey--text`') This group has no page rules yet.
-          .rule(v-for='rule of group.rules', :key='rule.id')
+          .rule(v-for='rule of safeGroupRules', :key='rule.id')
             v-btn.ma-0.radius-4.rule-deny-btn(
               solo
               :color='rule.deny ? "red" : "green"'
@@ -293,6 +293,10 @@ export default {
         this.$emit('input', val)
       }
     },
+    safeGroupRules() {
+      // Defensive: ensure rules is always an array for template rendering
+      return Array.isArray(this.group.rules) ? this.group.rules : []
+    },
     locales() {
       return siteLangs
     },
@@ -306,6 +310,10 @@ export default {
   },
   methods: {
     addRule(group) {
+      if (!Array.isArray(this.group.rules)) {
+        // Initialize rules array if missing to prevent undefined access errors
+        this.$set(this.group, 'rules', [])
+      }
       this.group.rules.push({
         id: nanoid(),
         path: '',
@@ -369,19 +377,19 @@ export default {
 
 <style lang="scss">
 .rules {
-  background-color: mc('blue-grey', '50');
+  background-color: mc('sapphire', '50');
   border-radius: 4px;
   padding: 1rem;
   position: relative;
 
   @at-root .v-application.theme--dark & {
-    background-color: mc('grey', '800');
+    background-color: mc('neutral', '800');
   }
 }
 
 .rule {
   display: flex;
-  background-color: mc('blue-grey', '100');
+  background-color: mc('sapphire', '100');
   border-radius: 4px;
   padding: 0.5rem;
   align-items: center;
@@ -396,7 +404,7 @@ export default {
   }
 
   @at-root .v-application.theme--dark & {
-    background-color: mc('grey', '700');
+    background-color: mc('neutral', '700');
   }
 
   & + .rule {
@@ -413,15 +421,15 @@ export default {
       justify-content: center;
       align-items: center;
       font-weight: 600;
-      color: mc('blue-grey', '700');
+      color: mc('sapphire', '700');
       font-size: 1.25rem;
-      background-color: mc('blue-grey', '50');
+      background-color: mc('sapphire', '50');
       left: -2rem;
       top: -1.3rem;
 
       @at-root .v-application.theme--dark & {
-        background-color: mc('grey', '800');
-        color: mc('grey', '600');
+        background-color: mc('neutral', '800');
+        color: mc('neutral', '600');
       }
     }
   }
